@@ -1,0 +1,150 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f5ebdc;
+  --foreground: #502314;
+  --color-secondary: #f5ebdc;
+  --color-primary: #502314;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-nunito-sans);
+  --font-mono: var(--font-nunito-mono);
+}
+
+/* 
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+} */
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-nunito-sans)
+}
+
+.text-primary {
+  color: var(--color-primary);
+}
+.bg-primary {
+  background-color: var(--color-primary);
+}
+.border-primary {
+  border-color: var(--color-primary);
+}
+.border-primary-100 {
+  border-color: #5023141a
+}
+
+.text-secondary {
+  color: var(--color-secondary);
+}
+.bg-secondary {
+  background-color: var(--color-secondary);
+}
+
+
+
+/* === MySnack brand tokens (easily tweak to 1:1 com os HTMLs) === */
+:root{
+  --brand-bg: #FCFBF8;           /* fundo claro/bege */
+  --brand-fg: #0A0A0A;           /* texto principal */
+  --brand-muted: #6B7280;        /* cinza texto secundário */
+  --brand-accent: #111827;       /* preto grafite para CTA/abas ativas */
+  --brand-accent-2: #F3F4F6;     /* cinza claro superfícies */
+  --brand-pill: #E5E7EB;         /* chips */
+  --brand-pill-active: #111827;  /* chips ativos */
+  --brand-pill-fg: #111827;
+  --brand-pill-active-fg: #FFFFFF;
+  --brand-card: #FFFFFF;
+  --brand-card-border: #E5E7EB;
+}
+
+/* fundo padrão do app */
+html, body {
+  background: var(--brand-bg);
+  color: var(--brand-fg);
+}
+
+/* utilitários */
+@layer utilities {
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-xl px-4 py-2 font-semibold;
+    background: var(--brand-accent);
+    color: #fff;
+  }
+  .btn-primary:hover { filter: brightness(0.95); }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center rounded-xl px-4 py-2;
+    background: transparent; color: var(--brand-fg);
+  }
+  .chip {
+    @apply rounded-full px-3 py-1 text-sm border;
+    background: var(--brand-pill);
+    color: var(--brand-pill-fg);
+    border-color: var(--brand-card-border);
+  }
+  .chip-active {
+    background: var(--brand-pill-active);
+    color: var(--brand-pill-active-fg);
+    border-color: var(--brand-pill-active);
+  }
+  .card {
+    @apply rounded-2xl p-4 shadow-sm border;
+    background: var(--brand-card);
+    border-color: var(--brand-card-border);
+  }
+  .muted { color: var(--brand-muted); }
+}
+
+
+/* === MySnack visual tune (approx. to screenshot) === */
+:root{
+  --brand-bg: #F7F7F5;            /* fundo base */
+  --brand-fg: #0F172A;            /* texto principal (slate-900) */
+  --brand-muted: #6B7280;         /* slate-500 */
+  --brand-accent: #111827;        /* slate-900 para CTAs */
+  --brand-card: #FFFFFF;
+  --brand-card-border: #E5E7EB;   /* gray-200 */
+  --brand-grad-a: #FF9248;        /* banner gradiente A */
+  --brand-grad-b: #EF4444;        /* banner gradiente B */
+  --brand-badge-blue: #3B82F6;    /* azul */
+  --brand-badge-red: #EF4444;     /* vermelho */
+  --brand-pill: #E5E7EB;
+  --brand-pill-active: #111827;
+  --brand-pill-fg: #111827;
+  --brand-pill-active-fg: #FFFFFF;
+}
+
+@layer utilities {
+  .card { @apply rounded-2xl p-4 shadow-sm border; background: var(--brand-card); border-color: var(--brand-card-border); }
+  .card-lg { @apply rounded-3xl p-6 shadow border; background: var(--brand-card); border-color: var(--brand-card-border); }
+  .muted { color: var(--brand-muted); }
+  .btn-primary { @apply inline-flex items-center justify-center rounded-xl px-4 py-2 font-semibold; background: var(--brand-accent); color:#fff; }
+  .btn-ghost { @apply inline-flex items-center justify-center rounded-xl px-4 py-2; background: transparent; color: var(--brand-fg); }
+  .chip { @apply rounded-full px-3 py-1 text-sm border; background: var(--brand-pill); color: var(--brand-pill-fg); border-color: var(--brand-card-border); }
+  .chip-active { background: var(--brand-pill-active); color: var(--brand-pill-active-fg); border-color: var(--brand-pill-active); }
+  .badge-blue { @apply text-xs px-2 py-0.5 rounded-full text-white; background: var(--brand-badge-blue); }
+  .badge-red  { @apply text-xs px-2 py-0.5 rounded-full text-white; background: var(--brand-badge-red); }
+  .elev-1 { box-shadow: 0 4px 18px rgba(0,0,0,0.08); }
+  .elev-2 { box-shadow: 0 8px 30px rgba(0,0,0,0.12); }
+}
+
+
+/* UI helpers */
+.card { @apply bg-white border border-gray-100 rounded-2xl p-4 shadow-sm; }
+.card:hover { @apply shadow-md; }
+.badge { @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-700; }
+.badge-red { @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-700; }
+.muted { @apply text-gray-500; }
+.btn-ghost { @apply px-3 py-1.5 rounded-full border border-gray-200 hover:bg-gray-50; }
+
+/* esconder barras de rolagem (transparente p/ usuário) */
+.scrollbar-none::-webkit-scrollbar { display: none; }
+.scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+
