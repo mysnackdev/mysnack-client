@@ -2,15 +2,15 @@ import { httpsCallable } from "firebase/functions";
 import { functions } from "../firebase";
 import { Store } from "@/@types";
 
-// Updated function name
-const getFoodStores = httpsCallable<unknown, Store>(
-  functions,
-  "getFoodStores"
-);
+export type GetStoresOptions = { signal?: AbortSignal }; // opcional e ignorado
+
+const getStores = httpsCallable<unknown, Store>(functions, "getFoodStores");
 
 export class StoresService {
-  static getStores = async (): Promise<Store> => {
-    const { data } = await getFoodStores();
+  static getStores = async (_options?: GetStoresOptions): Promise<Store> => {
+    // _options?.signal é ignorado, pois httpsCallable não suporta abort
+    console.log("_options recebido em getStores:", _options);
+    const { data } = await getStores();
     return data;
   };
 }

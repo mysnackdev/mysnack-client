@@ -5,9 +5,15 @@ import { StoreCard } from "@/components/store-card.component";
 import type { FoodStore } from "@/@types";
 
 function keyForStore(s: Partial<FoodStore>, i: number) {
-  const nome = (s as any)?.nome?.toString().trim();
-  const categoria = (s as any)?.categoria?.toString().trim() || "Outros";
-  return (s as any)?.id ?? (nome ? `${nome}-${categoria}` : `store-${i}`);
+  // usa 'id' se existir no objeto em runtime, sem depender do tipo
+  const id =
+    s && typeof s === "object" && "id" in s
+      ? (s as { id?: string | number }).id
+      : undefined;
+
+  const nome = s?.nome?.toString().trim();
+  const categoria = s?.categoria?.toString().trim() || "Outros";
+  return id ?? (nome ? `${nome}-${categoria}` : `store-${i}`);
 }
 
 export default function CategoriasPage() {
