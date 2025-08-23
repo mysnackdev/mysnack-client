@@ -1,12 +1,10 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import Link from "next/link";
-import Image from "next/image";
 import { useStores, FoodStore } from "@/hooks/useStores";
 
 export default function CategoriasPage() {
-  const { stores, loading, error, refetch } = useStores();
+  const { stores, loading, error } = useStores();
   const [sel, setSel] = useState<string>("Todas");
 
   const categorias = useMemo(() => {
