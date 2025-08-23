@@ -1,18 +1,30 @@
 "use client";
 
 import React from "react";
-import { useOrder } from "@/hooks/useOrder";
+import { useOrder, type OrderRoute } from "@/hooks/useOrder";
 import { LoginForm } from "./login-form";
 import { OrderForm } from "./order-form.component";
 import { RegisterForm } from "./register-form";
 import { SendPasswordResetEmailForm } from "./send-password-reset-email-form";
 import { getAuth, signOut, sendPasswordResetEmail } from "firebase/auth";
 
-// As mesmas rotas do useOrder
+// As mesmas rotas que o componente realmente renderiza
 type AllowedRoute = "login" | "send_password_reset_email" | "register" | "order";
 
+const ALLOWED_ROUTES: readonly AllowedRoute[] = [
+  "login",
+  "send_password_reset_email",
+  "register",
+  "order",
+] as const;
+
 function isAllowedRoute(r: string): r is AllowedRoute {
-  return r === "login" || r === "send_password_reset_email" || r === "register" || r === "order";
+  return (ALLOWED_ROUTES as readonly string[]).includes(r);
+}
+
+/** Converte qualquer OrderRoute (pode ser 'idle', etc.) em AllowedRoute segura p/ indexar `routes` */
+function toAllowedRoute(r: OrderRoute): AllowedRoute {
+  return isAllowedRoute(r as string) ? (r as AllowedRoute) : "login";
 }
 
 export const Order: React.FC = () => {
@@ -31,7 +43,7 @@ export const Order: React.FC = () => {
   const [resetEmail, setResetEmail] = React.useState<string>("");
   const [resetError, setResetError] = React.useState<string | null>(null);
 
-  // OrderForm espera FormEventHandler
+  // OrderForm espera FormEventHandler (retorno void)
   const onLogoutForm: React.FormEventHandler = async (e) => {
     e.preventDefault();
     try {
@@ -56,6 +68,11 @@ export const Order: React.FC = () => {
   // Ponte: SendPasswordResetEmailForm pede (route: string) => void
   const handleCurrentRouteBridge = (route: string) => {
     if (isAllowedRoute(route)) handleCurrentRoute(route);
+  };
+
+  // Bridge para compatibilizar Promise<void> -> void que o OrderForm exige
+  const onCreateOrderBridge: React.FormEventHandler = (event) => {
+    void handleCreateOrder(event as React.FormEvent<HTMLFormElement>);
   };
 
   const routes: Record<AllowedRoute, { title: string; component: React.ReactNode }> = {
@@ -88,11 +105,13 @@ export const Order: React.FC = () => {
           showForm={showForm}
           userName={userName}
           handleChangeName={handleChangeName}
-          handleCreateOrder={handleCreateOrder}
+          handleCreateOrder={onCreateOrderBridge}
         />
       ),
     },
   };
+
+  const safeKey = toAllowedRoute(currentRoute);
 
   return (
     <div
@@ -106,7 +125,7 @@ export const Order: React.FC = () => {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-3 border-b">
-          <h1 className="text-2xl font-bold">{routes[currentRoute].title}</h1>
+          <h1 className="text-2xl font-bold">{routes[safeKey].title}</h1>
           <button
             type="button"
             aria-label="Fechar"
@@ -116,7 +135,7 @@ export const Order: React.FC = () => {
             ×
           </button>
         </div>
-        <div className="overflow-auto p-3">{routes[currentRoute].component}</div>
+        <div className="overflow-auto p-3">{routes[safeKey].component}</div>
       </div>
     </div>
   );

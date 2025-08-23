@@ -1,113 +1,150 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { OrderService } from "@/services";
+import * as React from "react";
 import { auth } from "@/firebase";
-import { onAuthStateChanged, type User } from "firebase/auth";
-import type { DataSnapshot } from "firebase/database";
+import { onAuthStateChanged } from "firebase/auth";
+import { OrderService, type SnackOrder, type SnackOrderItem } from "@/services/order.service";
 
-export type RouteKey = "login" | "send_password_reset_email" | "register" | "order";
+/** Rotas que o componente Order pode renderizar */
+export type OrderRoute = "idle" | "login" | "send_password_reset_email" | "register" | "order";
 
-export type UseOrderReturn = {
+export interface UseOrderApi {
+  // estado geral (flutuante/modal)
   isModalVisible: boolean;
   handleInitOrder: () => void;
   handleCloseModal: () => void;
 
+  // estado para o OrderForm
+  showForm: boolean;            // true quando currentRoute === "order"
   userName: string;
   statusText: string;
-  showForm: boolean;
-  handleChangeName: (value: string) => void;
-  handleCreateOrder: (event: React.FormEvent<Element>) => void;
+  currentRoute: OrderRoute;
 
-  currentRoute: RouteKey;
-  handleCurrentRoute: (route: RouteKey) => void;
-};
+  // ações usadas nos formulários
+  handleChangeName: (name: string) => void;
+  handleCreateOrder: (e?: React.FormEvent<HTMLFormElement>) => Promise<void>;
+  handleCurrentRoute: (route: OrderRoute) => void;
+}
 
-export const useOrder = (): UseOrderReturn => {
-  const [statusText, setStatusText] = useState<string>("");
-  const [userName, setUserName] = useState<string>("");
-  const [showForm, setShowForm] = useState<boolean>(true);
+/** Mapeia rota -> texto de status mostrado no formulário */
+function routeToStatus(r: OrderRoute): string {
+  switch (r) {
+    case "login": return "Entre para fazer seu pedido";
+    case "register": return "Crie sua conta para continuar";
+    case "send_password_reset_email": return "Recupere sua senha";
+    case "order": return "Preencha os dados do pedido";
+    case "idle":
+    default: return "Pronto para começar";
+  }
+}
 
-  // visibilidade do modal
-  const [isModalVisible, setIsModalVisible] = useState<boolean>(false);
+/** Lê itens a partir do 'reorder' salvo localmente (quando o usuário clica em Repetir) */
+function readLastReorder(): SnackOrderItem[] {
+  try {
+    const raw = localStorage.getItem("mysnack_last_reorder");
+    const arr = raw ? (JSON.parse(raw) as SnackOrderItem[]) : [];
+    if (Array.isArray(arr)) return arr.filter(Boolean);
+  } catch {
+    /* noop */
+  }
+  return [];
+}
 
-  // rota inicial baseada no auth atual
-  const [currentRoute, setCurrentRoute] = useState<RouteKey>(
-    auth.currentUser ? "order" : "login"
-  );
+/** Soma o total de itens */
+function calcTotal(items: SnackOrderItem[]): number {
+  return items.reduce((acc, it) => acc + Number(it.price || 0) * Number(it.qty || 0), 0);
+}
 
-  // Observa mudanças de autenticação e ajusta rota
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (user: User | null) => {
-      setCurrentRoute(user ? "order" : "login");
+export function useOrder(): UseOrderApi {
+  const [isModalVisible, setIsModalVisible] = React.useState<boolean>(false);
+  const [currentRoute, setCurrentRoute] = React.useState<OrderRoute>("idle");
+  const [userName, setUserName] = React.useState<string>("");
+  const [uid, setUid] = React.useState<string | null>(auth.currentUser?.uid ?? null);
+
+  // Pré-carrega nome do usuário autenticado
+  React.useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (user) => {
+      setUid(user?.uid ?? null);
+      if (user?.displayName) setUserName(user.displayName);
     });
     return () => unsub();
   }, []);
 
-  const handleCurrentRoute = (route: RouteKey) => setCurrentRoute(route);
+  const showForm = currentRoute === "order";
+  const statusText = routeToStatus(currentRoute);
 
-  // Assinatura que o OrderForm espera: (event: FormEvent<Element>) => void
-  const handleCreateOrder = (event: React.FormEvent<Element>) => {
-    event.preventDefault();
+  /** Abre o modal e decide rota inicial (login ou order) */
+  const handleInitOrder = React.useCallback(() => {
+    setIsModalVisible(true);
+    setCurrentRoute(uid ? "order" : "login");
+  }, [uid]);
 
-    // roda a parte assíncrona mas mantém retorno void
-    void (async () => {
-      try {
-        if (!userName.trim()) {
-          setStatusText("Digite seu nome para fazer o pedido.");
-          return;
-        }
-
-        const orderKey = await OrderService.createOrder(userName);
-        setStatusText("Status do seu pedido: AGUARDANDO ACEITE");
-
-        if (orderKey) {
-          setShowForm(false);
-          handleTrackOrder(orderKey);
-          setUserName("");
-        }
-      } catch (error: unknown) {
-        const message =
-          error instanceof Error ? error.message : "Erro ao criar pedido.";
-        setStatusText(message);
-      }
-    })();
-  };
-
-  const handleChangeName = (value: string) => setUserName(value);
-
-  const handleTrackOrder = (key: string) => {
-    // Tipagem correta do snapshot
-    OrderService.trackOrder(key, (snapshot: DataSnapshot) => {
-      const data = snapshot.val() as { status?: string } | null;
-      const status = (data?.status ?? "").toString();
-      if (status) {
-        setStatusText(`Status do seu pedido: ${status.toUpperCase()}`);
-      }
-    });
-  };
-
-  // abre/fecha modal
-  const handleInitOrder = useCallback(() => {
-    setIsModalVisible((v) => !v);
-  }, []);
-
-  const handleCloseModal = useCallback(() => {
+  const handleCloseModal = React.useCallback(() => {
     setIsModalVisible(false);
+    setCurrentRoute("idle");
   }, []);
+
+  const handleChangeName = React.useCallback((name: string) => {
+    setUserName(name);
+  }, []);
+
+  const handleCurrentRoute = React.useCallback((route: OrderRoute) => {
+    setCurrentRoute(route);
+  }, []);
+
+  /** Cria um pedido simples no RTDB (compatível com o OrderService atual) */
+  const handleCreateOrder = React.useCallback(
+    async (e?: React.FormEvent<HTMLFormElement>) => {
+      if (e) e.preventDefault();
+      const userId = uid;
+      if (!userId) {
+        setCurrentRoute("login");
+        return;
+      }
+
+      // monta itens: usa "repetir" se existir; senão, um item simbólico
+      const items = readLastReorder();
+      const safeItems: SnackOrderItem[] =
+        items.length > 0
+          ? items
+          : [{ name: "Pedido MySnack", qty: 1, price: 0 }];
+
+      const order: Omit<SnackOrder, "key"> = {
+        brand: "MySnack",
+        items: safeItems,
+        total: calcTotal(safeItems),
+        status: "waiting for acceptance",
+        createdAt: Date.now(),
+      };
+
+      try {
+        await OrderService.createOrder(userId, order);
+        // fecha modal e limpa “reorder”
+        try {
+          localStorage.removeItem("mysnack_last_reorder");
+        } catch { /* noop */ }
+        setIsModalVisible(false);
+        setCurrentRoute("idle");
+      } catch (err) {
+        // mantém o modal aberto para o usuário tentar novamente
+        console.error("Não foi possível criar o pedido:", err);
+      }
+    },
+    [uid],
+  );
 
   return {
     isModalVisible,
     handleInitOrder,
     handleCloseModal,
 
+    showForm,
     userName,
     statusText,
-    showForm,
+    currentRoute,
+
     handleChangeName,
     handleCreateOrder,
-
-    currentRoute,
     handleCurrentRoute,
   };
-};
+}

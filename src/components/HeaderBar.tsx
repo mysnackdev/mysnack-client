@@ -1,117 +1,75 @@
 "use client";
-import React from "react";
-import Image from "next/image";
+
 import Link from "next/link";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faBell, faShoppingCart, faArrowUpRightFromSquare } from "@fortawesome/free-solid-svg-icons";
-import { useNotifications } from "@/hooks";
-import CartDrawer from "./cart-drawer";
+import Image from "next/image";
+import React from "react";
+import { ExternalLink, ShoppingCart, Bell } from "lucide-react";
 
-type CartItem = { qty?: number; quantity?: number; price?: number };
-
-function getCartCount(): number {
-  try {
-    if (typeof window === "undefined") return 0;
-    const raw = localStorage.getItem("mysnack_cart");
-    const arr = raw ? (JSON.parse(raw) as CartItem[]) : [];
-    if (!Array.isArray(arr)) return 0;
-    return arr.reduce((s, i) => s + (i?.qty ?? i?.quantity ?? 0), 0);
-  } catch {
-    return 0;
-  }
+export interface HeaderBarProps {
+  title?: string;
+  /** Substitui os botões à direita; quando omitido, mostra padrão (Parceiro, carrinho, sino) */
+  rightSlot?: React.ReactNode;
 }
 
-export default function HeaderBar() {
-  const [open, setOpen] = React.useState(false);
-  const [cartCount, setCartCount] = React.useState<number>(0);
-  const { items } = useNotifications();
-
-  // Abre o carrinho quando o app dispara o evento global "open-cart"
-  React.useEffect(() => {
-    const openHandler = () => setOpen(true);
-    if (typeof window !== "undefined") {
-      window.addEventListener("open-cart", openHandler as EventListener);
+export default function HeaderBar({ title, rightSlot }: HeaderBarProps) {
+  const openCart = (): void => {
+    try {
+      window.dispatchEvent(new Event("open-cart"));
+    } catch {
+      /* noop */
     }
-    return () => {
-      if (typeof window !== "undefined") {
-        window.removeEventListener("open-cart", openHandler as EventListener);
-      }
-    };
-  }, []);
-
-  // Mantém o badge do carrinho em dia via localStorage + eventos
-  React.useEffect(() => {
-    const recalc = () => setCartCount(getCartCount());
-    recalc(); // inicial
-    if (typeof window === "undefined") return;
-
-    window.addEventListener("storage", recalc); // mudanças em outras abas
-    window.addEventListener("cart-updated", recalc as EventListener); // evento customizado do app
-    // quando o drawer abre/fecha, reconta (útil se o drawer altera o carrinho)
-    const syncOnOpen = () => recalc();
-    window.addEventListener("open-cart", syncOnOpen as EventListener);
-
-    return () => {
-      window.removeEventListener("storage", recalc);
-      window.removeEventListener("cart-updated", recalc as EventListener);
-      window.removeEventListener("open-cart", syncOnOpen as EventListener);
-    };
-  }, [open]);
+  };
 
   return (
-    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur border-b shadow-sm">
-      <div className="max-w-[1200px] mx-auto px-4 h-16 flex items-center gap-3">
-        <Link href="/" className="flex items-center gap-3">
-          <Image src="/icon.png" alt="MySnack" width={32} height={32} className="rounded" />
-          <span className="font-extrabold tracking-tight text-[20px] md:text-[22px] text-gray-900">
+    <header className="sticky top-0 z-30 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+      <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 border-b px-4 py-3">
+        <Link href="/" aria-label="Página inicial" className="flex items-center gap-3">
+          {/* 
+            - Mantemos um width/height grande (para retina) e deixamos a classe controlar o tamanho visível.
+            - h-[clamp(32px,8vw,72px)]: mínimo 32px, cresce com viewport (8vw), máximo 72px.
+          */}
+          <Image
+            src="/logo.svg"
+            alt="MySnack"
+            width={256}
+            height={256}
+            priority
+            className="h-[clamp(32px,8vw,72px)] w-auto shrink-0"
+          />
+          {/* Opcional: título acompanha o crescimento do logo, sem exagerar */}
+          <span className="font-semibold leading-none text-[clamp(16px,2.4vw,24px)]">
             MySnack
           </span>
         </Link>
 
-        <div className="ml-auto flex items-center gap-2">
-          <a
-            href="https://mysnack-backoffice-6fb29.web.app"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-3 py-1.5 rounded-full border bg-white hover:bg-gray-50 text-sm flex items-center gap-2 shadow-sm"
-            aria-label="Área do Parceiro"
-          >
-            Parceiro
-            <FontAwesomeIcon icon={faArrowUpRightFromSquare} className="w-3 h-3 opacity-70" />
-          </a>
+        {title ? <h1 className="text-base font-medium">{title}</h1> : <div />}
 
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            className="relative p-2 rounded-full hover:bg-gray-100"
-            aria-label="Abrir carrinho"
-            title="Seu carrinho"
-          >
-            <FontAwesomeIcon icon={faShoppingCart} className="w-5 h-5" />
-            {cartCount > 0 ? (
-              <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center text-[10px] min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white">
-                {cartCount}
-              </span>
-            ) : null}
-          </button>
-
-          <Link
-            href="/perfil/notificacoes"
-            className="relative p-2 rounded-full hover:bg-gray-100"
-            aria-label="Notificações"
-            title="Notificações"
-          >
-            <FontAwesomeIcon icon={faBell} className="w-5 h-5" />
-            {items?.length ? (
-              <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center text-[10px] min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white">
-                {items.length}
-              </span>
-            ) : null}
-          </Link>
-        </div>
+        {rightSlot ?? (
+          <div className="flex items-center gap-2">
+            <Link
+              href="/parceiro"
+              className="inline-flex items-center gap-1 rounded-full border px-3 py-1 text-sm hover:bg-gray-50"
+            >
+              Parceiro <ExternalLink className="h-4 w-4" />
+            </Link>
+            <button
+              type="button"
+              aria-label="Carrinho"
+              className="rounded-full p-2 hover:bg-black/5"
+              onClick={openCart}
+            >
+              <ShoppingCart className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              aria-label="Notificações"
+              className="rounded-full p-2 hover:bg-black/5"
+            >
+              <Bell className="h-5 w-5" />
+            </button>
+          </div>
+        )}
       </div>
-
-      <CartDrawer open={open} onClose={() => setOpen(false)} />
     </header>
   );
 }

@@ -1,118 +1,93 @@
 "use client";
+
 import React, { useMemo } from "react";
 import Link from "next/link";
-import { useStores } from "@/hooks";
-import type { FoodStore, FoodStoreCombo } from "@/@types";
+import Image from "next/image";
 
-type DealItem = { store: FoodStore; combo: FoodStoreCombo };
-type LocalCartItem = { id: string; name: string; qty: number; price: number };
+// Use os tipos do HOOK como fonte de verdade (evita conflito com @/@types)
+import type { FoodStore, ComboItem as FoodStoreCombo } from "@/hooks/useStores";
 
-export default function Highlights() {
-  function addToCart(it: DealItem) {
-    try {
-      const raw = localStorage.getItem("mysnack_cart");
-      const arr: LocalCartItem[] = raw ? JSON.parse(raw) : [];
+// Itens destacados (ex.: 1º combo de cada loja)
+type HighlightItem = { store: FoodStore; combo: FoodStoreCombo };
 
-      const id = `${it.store?.nome || "loja"}::${it.combo?.nome || "combo"}`;
-      const price = Number(it.combo?.preco ?? 0);
-
-      const index = arr.findIndex((e) => e.id === id);
-      if (index >= 0) {
-        arr[index].qty = (arr[index].qty || 0) + 1;
-      } else {
-        arr.push({
-          id,
-          name: `${it.store?.nome} — ${it.combo?.nome}`,
-          qty: 1,
-          price,
-        });
-      }
-
-      localStorage.setItem("mysnack_cart", JSON.stringify(arr));
-      window.dispatchEvent(new Event("open-cart"));
-      window.dispatchEvent(new Event("cart-updated"));
-    } catch {
-      // ignora erros de parse/localStorage
-    }
+function formatBRL(n: number): string {
+  try {
+    return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  } catch {
+    return `R$ ${Number(n || 0).toFixed(2)}`;
   }
+}
 
-  const { stores, loading } = useStores();
+export interface HighlightsSectionProps {
+  stores: FoodStore[] | undefined;
+  title?: string;
+  limit?: number;
+}
 
-  const destaques = useMemo(() => {
-    const items: DealItem[] = [];
+export default function HighlightsSection({
+  stores,
+  title = "Destaques",
+  limit = 6,
+}: HighlightsSectionProps) {
+  const highlights = useMemo<HighlightItem[]>(() => {
+    const items: HighlightItem[] = [];
     (stores ?? []).forEach((store) => {
-      (store.pacotes ?? []).slice(0, 1).forEach((combo) => {
-        items.push({ store, combo });
-      });
+      (store.pacotes ?? [])
+        .slice(0, 1) // pega o primeiro combo de cada loja como “destaque”
+        .forEach((combo) => items.push({ store, combo }));
     });
-    return items.slice(0, 6);
-  }, [stores]);
+    return items.slice(0, limit);
+  }, [stores, limit]);
 
-  if (loading) return <div className="card">Carregando destaques…</div>;
+  if (!highlights.length) return null;
 
   return (
-    <section aria-labelledby="high-title" className="space-y-3">
-      <h2 id="high-title" className="text-2xl font-bold">Destaques</h2>
-
-      {/* Mobile: carrossel horizontal com snap */}
-      <div className="md:hidden overflow-x-auto scrollbar-none -mx-4 px-4 snap-x snap-mandatory scroll-px-4">
-        <div className="flex gap-3 w-max">
-          {destaques.map((it, idx) => (
-            <div key={idx} className="card min-w-[240px] snap-start">
-              <div className="flex items-center justify-between text-xs mb-1">
-                <span className="badge">Top</span>
-                <span className="muted">{it.store.categoria}</span>
-              </div>
-              <h3 className="font-semibold">{it.store.nome}</h3>
-              <p className="muted text-sm">{it.combo.nome}</p>
-              <div className="flex items-center justify-between mt-2">
-                <span className="font-bold">R$ {it.combo.preco.toFixed(2)}</span>
-              </div>
-              <div className="flex items-center gap-2 mt-3">
-                <button
-                  onClick={() => addToCart(it)}
-                  className="px-3 py-1.5 rounded-full bg-black text-white text-sm"
-                >
-                  Pedir
-                </button>
-                <Link
-                  href={`/categorias?store=${encodeURIComponent(it.store.nome)}`}
-                  className="btn-ghost text-sm"
-                >
-                  Detalhes
-                </Link>
-              </div>
-            </div>
-          ))}
-        </div>
+    <section className="space-y-3">
+      <div className="flex items-center justify-between px-1">
+        <h2 className="text-lg font-semibold">{title}</h2>
+        <Link href="/categorias" className="text-sm text-muted-foreground hover:underline">
+          Ver tudo
+        </Link>
       </div>
 
-      {/* Desktop: grid */}
-      <div className="hidden md:grid md:grid-cols-3 gap-3">
-        {destaques.map((it, idx) => (
-          <div key={idx} className="card relative overflow-hidden">
-            <div className="flex items-center justify-between text-xs mb-1">
-              <span className="badge">Top</span>
-              <span className="muted">{it.store.categoria}</span>
+      {/* Grid responsivo */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {highlights.map(({ store, combo }) => (
+          <Link
+            key={`${store.id}-${combo.id}`}
+            href={`/categorias?store=${encodeURIComponent(store.nome)}`}
+            className="overflow-hidden rounded-xl border bg-white shadow-sm transition hover:shadow-md"
+          >
+            <div className="aspect-[16/9] w-full overflow-hidden bg-gray-100">
+              {combo.imagemUrl ? (
+                <Image
+                  src={combo.imagemUrl}
+                  alt={combo.nome}
+                  width={800}
+                  height={450}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">
+                  sem imagem
+                </div>
+              )}
             </div>
-            <h3 className="font-semibold">{it.store.nome}</h3>
-            <p className="muted text-sm">{it.combo.nome}</p>
-            <div className="flex items-center justify-between mt-2">
-              <button
-                onClick={() => addToCart(it)}
-                className="px-3 py-1.5 rounded-full bg-black text-white text-sm"
-              >
-                Pedir
-              </button>
-              <span className="font-bold">R$ {it.combo.preco.toFixed(2)}</span>
-              <Link
-                href={`/categorias?store=${encodeURIComponent(it.store.nome)}`}
-                className="btn-ghost text-sm"
-              >
-                Detalhes
-              </Link>
+
+            <div className="p-3">
+              <p className="line-clamp-1 text-sm text-muted-foreground">
+                {store.categoria ?? "—"}
+              </p>
+              <h3 className="line-clamp-1 text-base font-semibold">{store.nome}</h3>
+
+              <div className="mt-2">
+                <p className="line-clamp-2 text-sm">
+                  <span className="font-medium">{combo.nome}</span>
+                </p>
+                <p className="mt-1 text-base font-bold">{formatBRL(combo.preco)}</p>
+              </div>
             </div>
-          </div>
+          </Link>
         ))}
       </div>
     </section>

@@ -1,80 +1,202 @@
 "use client";
-import { FoodStore } from "@/@types";
-import { StoresService } from "@/services";
+
 import { useCallback, useEffect, useRef, useState } from "react";
+import { StoreService, type GetFoodStoresResult } from "@/services/store.service";
 
-function normalizeStores(payload: unknown): FoodStore[] {
-  if (!payload) return [];
-  const p = payload as {
-    lojas_de_alimentacao?: unknown;
-    food_stores?: unknown;
-    stores?: unknown;
-    data?: {
-      lojas_de_alimentacao?: unknown;
-      food_stores?: unknown;
-      stores?: unknown;
-    };
-  };
-
-  const candidates: Array<unknown | undefined> = [
-    p.lojas_de_alimentacao,
-    p.food_stores,
-    p.stores,
-    p.data?.lojas_de_alimentacao,
-    p.data?.food_stores,
-    p.data?.stores,
-  ];
-
-  const arr = candidates.find((c): c is unknown[] => Array.isArray(c)) ?? [];
-  const list: FoodStore[] = Array.isArray(arr) ? (arr as FoodStore[]) : [];
-
-  // opcional: ordenação por nome para UI consistente
-  return [...list].sort((a, b) => (a?.nome ?? "").localeCompare(b?.nome ?? ""));
+/** Item de combo/pacote oferecido por uma loja (como o app consome) */
+export interface ComboItem {
+  id: string;
+  nome: string;
+  preco: number;
+  itens?: Array<{ nome: string; qtd: number }>;
+  imagemUrl?: string;
 }
 
-export const useStores = () => {
+/** Loja de alimentação (fonte de verdade para o app) */
+export interface FoodStore {
+  id: string;
+  nome: string;
+  categoria?: string;
+  endereco?: string;
+  telefone?: string;
+  localizacao?: string;
+  contato?: string;      // website
+  pacotes?: ComboItem[]; // normalizado de 'bundles' | 'pacotes' | 'packages'
+}
+
+export interface UseStoresReturn {
+  stores: FoodStore[];
+  loading: boolean;
+  error: string | null;
+  refetch: () => Promise<void>;
+}
+
+type UnknownRecord = Record<string, unknown>;
+
+function toStringOr<T extends string>(v: unknown, fallback: T): string {
+  return typeof v === "string" ? v : fallback;
+}
+function toNumberOr(v: unknown, fallback = 0): number {
+  return typeof v === "number" ? v : Number(v ?? fallback) || fallback;
+}
+
+/** ---- Type guard para o resultado do Cloud Functions ---- */
+function isCFResult(p: unknown): p is GetFoodStoresResult {
+  return !!p && typeof p === "object" && Array.isArray((p as { food_stores?: unknown }).food_stores);
+}
+
+/** Gera um id estável quando o backend não manda id */
+function makeIdFromName(name: string, idx: number): string {
+  const slug = name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return `cf::${idx}::${slug || "loja"}`;
+}
+
+/** Converte **GetFoodStoresResult** (oficial do CF) -> modelo do app */
+function normalizeFromCF(cf: GetFoodStoresResult): FoodStore[] {
+  const stores: FoodStore[] = (cf.food_stores ?? []).map((raw, idx) => {
+    // <<< sem cast para UnknownRecord
+    const id = raw.id ?? makeIdFromName(raw.name, idx);
+    const nome = raw.name || "Loja";
+    const categoria = raw.category || undefined;
+    const localizacao = raw.location || undefined;
+    const telefone = raw.contact?.phone || undefined;
+    const website = raw.contact?.website || undefined;
+
+    const pacotes: ComboItem[] = (raw.bundles ?? []).map((b, i) => ({
+      id: b.id ?? `${id}::b${i}`,
+      nome: b.name || "Combo",
+      preco: Number(b.price) || 0,
+      imagemUrl: b.image,
+    }));
+
+    return {
+      id,
+      nome,
+      categoria,
+      localizacao,
+      telefone,
+      contato: website,
+      pacotes: pacotes.length ? pacotes : undefined,
+    };
+  });
+
+  return stores.sort((a, b) => (a?.nome ?? "").localeCompare(b?.nome ?? ""));
+}
+
+/** Fallback robusto para formatos antigos (quando não vier GetFoodStoresResult) */
+function normalizeLegacy(payload: unknown): FoodStore[] {
+  const p = payload as UnknownRecord;
+
+  const candidates = [
+    (p["data"] as UnknownRecord | undefined)?.["food_stores"],
+    p["food_stores"],
+    p["lojas_de_alimentacao"],
+    p["stores"],
+  ];
+
+  const arr = candidates.find((c) => Array.isArray(c)) as UnknownRecord[] | undefined;
+  const list = Array.isArray(arr) ? arr : [];
+
+  const stores = list.map((r, idx) => {
+    const id = toStringOr(r["id"], makeIdFromName(toStringOr(r["nome"] ?? r["name"], "Loja"), idx));
+    const nome = toStringOr(r["nome"] ?? r["name"], "Loja");
+    const categoria =
+      typeof r["categoria"] === "string"
+        ? (r["categoria"] as string)
+        : typeof r["category"] === "string"
+        ? (r["category"] as string)
+        : undefined;
+    const localizacao =
+      typeof r["localizacao"] === "string"
+        ? (r["localizacao"] as string)
+        : typeof r["location"] === "string"
+        ? (r["location"] as string)
+        : undefined;
+
+    const contact = (r["contact"] ?? r["contato"]) as UnknownRecord | undefined;
+    const telefone =
+      typeof r["telefone"] === "string"
+        ? (r["telefone"] as string)
+        : contact && typeof contact["phone"] === "string"
+        ? (contact["phone"] as string)
+        : undefined;
+    const website =
+      contact && typeof contact["website"] === "string" ? (contact["website"] as string) : undefined;
+
+    const src =
+      (Array.isArray(r["pacotes"]) && (r["pacotes"] as UnknownRecord[])) ||
+      (Array.isArray(r["packages"]) && (r["packages"] as UnknownRecord[])) ||
+      (Array.isArray(r["bundles"]) && (r["bundles"] as UnknownRecord[])) ||
+      [];
+
+    const pacotes: ComboItem[] = src.map((b, i) => ({
+      id: toStringOr(b["id"], `${id}::p${i}`),
+      nome: toStringOr(b["nome"] ?? b["name"], "Combo"),
+      preco: toNumberOr(b["preco"] ?? b["price"], 0),
+      imagemUrl: typeof b["image"] === "string" ? (b["image"] as string) : undefined,
+    }));
+
+    return {
+      id,
+      nome,
+      categoria,
+      localizacao,
+      telefone,
+      contato: website,
+      pacotes: pacotes.length ? pacotes : undefined,
+    };
+  });
+
+  return stores.sort((a, b) => (a?.nome ?? "").localeCompare(b?.nome ?? ""));
+}
+
+/** Função de normalização pública — prioriza **GetFoodStoresResult** */
+function normalizeStores(payload: GetFoodStoresResult | unknown): FoodStore[] {
+  if (isCFResult(payload)) return normalizeFromCF(payload);
+  return normalizeLegacy(payload);
+}
+
+export function useStores(): UseStoresReturn {
   const [stores, setStores] = useState<FoodStore[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const mounted = useRef(true);
   const controllerRef = useRef<AbortController | null>(null);
 
-  const fetchStores = useCallback(async () => {
+  const doLoad = useCallback(async () => {
+    controllerRef.current?.abort();
+    controllerRef.current = new AbortController();
+
     try {
       setLoading(true);
       setError(null);
-      controllerRef.current?.abort();
-      controllerRef.current = new AbortController();
 
-      const data = await StoresService.getStores({
-        signal: controllerRef.current.signal, // se o service aceitar signal
-      } as { signal?: AbortSignal });
+      // Retorno tipado (GetFoodStoresResult)
+      const raw = await StoreService.getStores({
+        signal: controllerRef.current.signal,
+      });
 
-      const list = normalizeStores(data);
-      if (mounted.current) setStores(list);
-    } catch (e: unknown) {
-      // ignorar abort
-      const isAbort =
-        (e instanceof DOMException && e.name === "AbortError") ||
-        (typeof e === "object" && e !== null && "name" in e && (e as { name?: string }).name === "AbortError");
-
-      if (isAbort) return;
-
-      console.error(e);
-      if (mounted.current) setError("Erro ao carregar informações");
+      setStores(normalizeStores(raw));
+    } catch (e) {
+      if (e instanceof Error && e.name === "AbortError") return;
+      setError(e instanceof Error ? e.message : "Erro ao carregar lojas");
     } finally {
-      if (mounted.current) setLoading(false);
+      setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    mounted.current = true;
-    fetchStores();
-    return () => {
-      mounted.current = false;
-      controllerRef.current?.abort();
-    };
-  }, [fetchStores]);
+    void doLoad();
+    return () => controllerRef.current?.abort();
+  }, [doLoad]);
 
-  return { stores, loading, error, refetch: fetchStores };
-};
+  const refetch = useCallback(async () => {
+    await doLoad();
+  }, [doLoad]);
+
+  return { stores, loading, error, refetch };
+}

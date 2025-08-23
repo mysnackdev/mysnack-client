@@ -1,8 +1,9 @@
 "use client";
+
 import Link from "next/link";
 import React, { useMemo } from "react";
 import { useStores } from "@/hooks";
-import type { FoodStore, FoodStoreCombo } from "@/@types";
+import type { FoodStore, ComboItem as FoodStoreCombo } from "@/hooks/useStores";
 
 type DealItem = { store: FoodStore; combo: FoodStoreCombo };
 type LocalCartItem = { id: string; name: string; qty: number; price: number };
@@ -55,7 +56,7 @@ export default function CheapDeals() {
           {baratos.map((it, idx) => (
             <div key={idx} className="card min-w-[240px] snap-start">
               <p className="text-xs muted">
-                {it.store.categoria} • {it.store.localizacao}
+                {it.store.categoria ?? "—"} • {it.store.localizacao ?? "—"}
               </p>
               <h3 className="text-lg font-semibold">{it.store.nome}</h3>
               <p className="mt-2">
@@ -96,7 +97,7 @@ export default function CheapDeals() {
         {baratos.map((it, idx) => (
           <div key={idx} className="card">
             <p className="text-xs muted">
-              {it.store.categoria} • {it.store.localizacao}
+              {it.store.categoria ?? "—"} • {it.store.localizacao ?? "—"}
             </p>
             <h3 className="text-lg font-semibold">{it.store.nome}</h3>
             <p className="mt-2">

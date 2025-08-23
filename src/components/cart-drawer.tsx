@@ -1,141 +1,101 @@
 "use client";
+
 import React from "react";
-import Link from "next/link";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faTimes } from "@fortawesome/free-solid-svg-icons";
-import { useOrder } from "@/hooks";
 
-type Props = { open: boolean; onClose: () => void };
-type CartItem = { id: string; name: string; qty: number; price?: number };
+export interface CartItem {
+  id: string;
+  name: string;
+  qty: number;
+  price: number;
+}
 
-// Tipagem mínima do contexto de pedidos
-type OrderContext = {
-  items?: CartItem[];
-  cart?: { items?: CartItem[] };
-  state?: { items?: CartItem[] };
-};
+export interface CartDrawerProps {
+  isOpen: boolean;
+  items: CartItem[];
+  onClose: () => void;
+  onRemoveItem: (id: string) => void;
+  onChangeQty: (id: string, qty: number) => void;
+  onCheckout: () => void;
+}
 
-export default function CartDrawer({ open, onClose }: Props) {
-  // Hook do pedido
-  const orderCtx = (useOrder?.() ?? null) as OrderContext | null;
-
-  // Fonte bruta do contexto (pode ser undefined)
-  const itemsFromCtx =
-    orderCtx?.items ?? orderCtx?.cart?.items ?? orderCtx?.state?.items;
-
-  // ✅ Memoiza e normaliza para array estável
-  const orderItems = React.useMemo<CartItem[]>(
-    () => (Array.isArray(itemsFromCtx) ? itemsFromCtx : []),
-    [itemsFromCtx]
-  );
-
-  const [items, setItems] = React.useState<CartItem[]>([]);
-
-  // Atualiza itens quando abrir o drawer ou quando a fonte do contexto mudar
-  React.useEffect(() => {
-    if (orderItems.length) {
-      setItems(orderItems);
-      return;
-    }
-    // Fallback: localStorage quando o contexto ainda não populou
-    try {
-      if (typeof window !== "undefined") {
-        const raw = localStorage.getItem("mysnack_cart");
-        if (raw) setItems(JSON.parse(raw) as CartItem[]);
-        else setItems([]);
-      }
-    } catch {
-      setItems([]);
-    }
-  }, [open, orderItems]);
-
-  const subtotal = items.reduce((sum, it) => sum + (it.price ?? 0) * it.qty, 0);
+export function CartDrawer({
+  isOpen,
+  items,
+  onClose,
+  onRemoveItem,
+  onChangeQty,
+  onCheckout,
+}: CartDrawerProps) {
+  const subtotal = items.reduce((sum, it) => sum + it.qty * it.price, 0);
 
   return (
-    <div
-      aria-hidden={!open}
-      className={
-        "fixed inset-0 z-50 transition " +
-        (open ? "pointer-events-auto" : "pointer-events-none")
-      }
+    <aside
+      aria-hidden={!isOpen}
+      className={`fixed right-0 top-0 z-50 h-full w-[360px] transform border-l bg-white shadow-xl transition ${
+        isOpen ? "translate-x-0" : "translate-x-full"
+      }`}
     >
-      {/* backdrop */}
-      <div
-        className={
-          "absolute inset-0 bg-black/30 transition-opacity " +
-          (open ? "opacity-100" : "opacity-0")
-        }
-        onClick={onClose}
-      />
+      <div className="flex items-center justify-between border-b p-4">
+        <h2 className="text-lg font-semibold">Sua sacola</h2>
+        <button onClick={onClose} className="rounded-md border px-3 py-1 text-sm hover:bg-gray-50">
+          Fechar
+        </button>
+      </div>
 
-      {/* panel */}
-      <aside
-        className={
-          "absolute right-0 top-0 h-full w-full max-w-md bg-white shadow-xl transition-transform " +
-          (open ? "translate-x-0" : "translate-x-full")
-        }
-        role="dialog"
-        aria-label="Seu Pedido"
-      >
-        <div className="p-4 border-b flex items-center justify-between">
-          <h2 className="text-lg font-bold">Seu Pedido</h2>
-          <button
-            type="button"
-            aria-label="Fechar"
-            onClick={onClose}
-            className="p-2 rounded hover:bg-gray-100"
-          >
-            <FontAwesomeIcon icon={faTimes} />
-          </button>
-        </div>
+      <div className="max-h-[calc(100%-160px)] overflow-auto p-4">
+        {items.length === 0 && <p className="text-sm text-muted-foreground">Sua sacola está vazia.</p>}
 
-        {/* Conteúdo rolável */}
-        <div className="p-4 overflow-y-auto h-[calc(100%-120px)]">
-          {items.length === 0 ? (
-            <div className="text-center text-gray-500 py-16">
-              <p className="text-sm">Seu carrinho está vazio</p>
-              <p className="text-xs">Adicione alguns pratos deliciosos!</p>
-            </div>
-          ) : (
-            <ul className="space-y-3">
-              {items.map((it) => (
-                <li
-                  key={it.id}
-                  className="flex items-center justify-between border-b pb-2"
-                >
-                  <div>
-                    <p className="font-medium">{it.name}</p>
-                    <p className="text-sm text-gray-500">Qtd: {it.qty}</p>
-                  </div>
-                  <div className="text-right">
-                    {typeof it.price === "number" && (
-                      <span className="font-semibold">
-                        R$ {(it.price * it.qty).toFixed(2)}
-                      </span>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        <ul className="space-y-3">
+          {items.map((it) => (
+            <li key={it.id} className="rounded-lg border p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium">{it.name}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {it.qty} x R$ {it.price.toFixed(2)}
+                  </p>
+                </div>
 
-        {/* Rodapé fixo */}
-        <div className="sticky bottom-0 border-t bg-white p-4 flex items-center justify-between gap-3">
-          <div className="text-sm">
-            <span className="text-gray-500">Subtotal</span>
-            <br />
-            <span className="text-lg font-bold">R$ {subtotal.toFixed(2)}</span>
-          </div>
-          <Link
-            href="/pedidos"
-            className="px-4 py-2 rounded-full bg-black text-white font-semibold"
-            onClick={onClose}
-          >
-            Ir para checkout
-          </Link>
+                <div className="flex items-center gap-1">
+                  <button
+                    className="rounded border px-2"
+                    onClick={() => onChangeQty(it.id, Math.max(1, it.qty - 1))}
+                  >
+                    −
+                  </button>
+                  <span className="px-2">{it.qty}</span>
+                  <button className="rounded border px-2" onClick={() => onChangeQty(it.id, it.qty + 1)}>
+                    +
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-2 flex items-center justify-between">
+                <span className="text-sm">
+                  Total: <strong>R$ {(it.qty * it.price).toFixed(2)}</strong>
+                </span>
+                <button className="text-sm text-red-600 hover:underline" onClick={() => onRemoveItem(it.id)}>
+                  Remover
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="border-t p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <span className="text-sm text-muted-foreground">Subtotal</span>
+          <span className="text-base font-semibold">R$ {subtotal.toFixed(2)}</span>
         </div>
-      </aside>
-    </div>
+        <button
+          disabled={items.length === 0}
+          onClick={onCheckout}
+          className="w-full rounded-md bg-black px-4 py-2 font-semibold text-white disabled:opacity-50"
+        >
+          Finalizar pedido
+        </button>
+      </div>
+    </aside>
   );
 }

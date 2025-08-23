@@ -1,99 +1,73 @@
-// services/order.service.ts
 import { db } from "@/firebase";
 import {
-  ref, query, orderByChild, equalTo, limitToLast,
-  onValue, off, get, push, set, DataSnapshot
+  get,
+  onValue,
+  orderByChild,
+  query,
+  ref,
+  limitToLast,
+  push,
+  set,
+  DataSnapshot,
 } from "firebase/database";
 
-export type SnackOrderItem = {
-  id: string;
+export interface SnackOrderItem {
   name: string;
   qty: number;
-  price: number; // unit price
-};
-
-export type SnackOrder = {
-  key: string;
-  userId: string;
-  brand?: string;          // ex.: "Pizza Caesar"
-  items: SnackOrderItem[];
-  total: number;           // total do pedido
-  status: string;          // ex.: "concluído" | "aguardando aceite"
-  createdAt: number;       // Date.now()
-  // campos livres (mesa, storeId etc)
-};
-
-type ListOptions = { limit?: number };
-
-// UTIL: converte snapshot em array ordenada por createdAt desc
-function snapshotToOrders(snapshot: DataSnapshot): SnackOrder[] {
-  const result: SnackOrder[] = [];
-  snapshot.forEach((child) => {
-    const val = child.val() || {};
-    result.push({
-      key: child.key || "",
-      userId: val.userId,
-      brand: val.brand,
-      items: val.items || [],
-      total: Number(val.total || 0),
-      status: String(val.status || ""),
-      createdAt: Number(val.createdAt || 0),
-    });
-  });
-  return result.sort((a, b) => b.createdAt - a.createdAt);
+  price: number;
 }
 
-export const OrderService = {
-  async createOrder(name: string): Promise<string> {
-    const pedidosRef = ref(db, "pedidos");
-    const newRef = push(pedidosRef);
-    await set(newRef, {
-      userId: "anonymous",
-      brand: "Pizza Caesar",
-      items: [],
-      total: 0,
-      status: "aguardando aceite",
-      createdAt: Date.now(),
-      name,
+export interface SnackOrder {
+  key?: string;
+  brand?: string;
+  items: SnackOrderItem[];
+  total: number;
+  status?: string;
+  createdAt: number; // timestamp (ms)
+}
+
+export interface ListenOptions {
+  limit?: number;
+}
+
+export class OrderService {
+  /** escuta pedidos do usuário em tempo real */
+  static listenUserOrders(
+    uid: string,
+    options: ListenOptions,
+    cb: (orders: SnackOrder[]) => void
+  ): () => void {
+    const lmt = options.limit ?? 50;
+    const q = query(ref(db, `pedidos/${uid}`), orderByChild("createdAt"), limitToLast(lmt));
+
+    const unsubscribe = onValue(q, (snap: DataSnapshot) => {
+      const val = snap.val() as Record<string, SnackOrder> | null;
+      const list: SnackOrder[] = val
+        ? Object.entries(val)
+            .map(([key, v]) => ({ ...(v as SnackOrder), key }))
+            .sort((a, b) => b.createdAt - a.createdAt)
+        : [];
+      cb(list);
     });
+
+    return () => unsubscribe();
+  }
+
+  /** cria um pedido simples */
+  static async createOrder(uid: string, order: Omit<SnackOrder, "key">): Promise<string> {
+    const r = ref(db, `pedidos/${uid}`);
+    const newRef = push(r);
+    await set(newRef, order);
     return newRef.key as string;
-  },
+  }
 
-  trackOrder(orderKey: string, cb: (s: DataSnapshot) => void) {
-    const r = ref(db, `pedidos/${orderKey}`);
-    return onValue(r, cb);
-  },
-
-  // Escuta pedidos do usuário (histórico + peça de novo)
-  listenUserOrders(userId: string, { limit = 20 }: ListOptions, cb: (orders: SnackOrder[]) => void) {
-    const base = ref(db, "pedidos");
-    const q = query(base, orderByChild("userId"), equalTo(userId), limitToLast(limit));
-    onValue(q, (snap) => cb(snapshotToOrders(snap)));
-    return () => off(q); // cancelar listener
-  },
-
-  // Busca uma vez (sem streaming)
-  async fetchUserOrdersOnce(userId: string, { limit = 20 }: ListOptions = {}): Promise<SnackOrder[]> {
-    const base = ref(db, "pedidos");
-    const q = query(base, orderByChild("userId"), equalTo(userId), limitToLast(limit));
+  /** obtém o último pedido (exemplo utilitário) */
+  static async getLastOrder(uid: string): Promise<SnackOrder | null> {
+    const q = query(ref(db, `pedidos/${uid}`), orderByChild("createdAt"), limitToLast(1));
     const snap = await get(q);
-    return snapshotToOrders(snap);
-  },
-
-  // Pedir novamente — replica os itens do pedido anterior
-  async reorderFrom(order: SnackOrder, overrides?: Partial<Omit<SnackOrder, "key">>) {
-    const pedidosRef = ref(db, "pedidos");
-    const newRef = push(pedidosRef);
-    const payload: Omit<SnackOrder, "key"> = {
-      userId: order.userId,
-      brand: order.brand,
-      items: order.items || [],
-      total: order.total,
-      status: "aguardando aceite",
-      createdAt: Date.now(),
-      ...overrides,
-    };
-    await set(newRef, payload);
-    return newRef.key as string;
-  },
-};
+    const val = snap.val() as Record<string, SnackOrder> | null;
+    if (!val) return null;
+    const [key, o] = Object.entries(val)[0];
+    return { ...(o as SnackOrder), key };
+  }
+}

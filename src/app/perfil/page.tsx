@@ -56,6 +56,9 @@ export default function PerfilPage() {
     return (
       <main className="max-w-5xl mx-auto px-4">
         <header className="py-6">
+          {user?.displayName && (
+            <p className="text-muted-foreground mt-1">Bem-vindo {user.displayName}</p>
+          )}
           <ProfileHeader
             name={user?.displayName ?? null}
             email={user?.email ?? null}
