@@ -22,10 +22,7 @@ export default function CategoriasPage() {
 
   return (
     <main className="max-w-5xl mx-auto px-4 pb-24">
-      <header className="py-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Categorias</h1>
-      </header>
-
+    
       <section className="mb-4">
         <div className="flex flex-wrap gap-2">
           {categorias.map((c) => (
