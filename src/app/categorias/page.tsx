@@ -25,17 +25,7 @@ export default function CategoriasPage() {
   return (
     <main className="max-w-5xl mx-auto px-4 pb-24">
       <header className="py-6 flex items-center justify-between">
-        <Link href="/" aria-label="Página inicial" className="flex items-center gap-2">
-          <Image src="/logo.svg" alt="MySnack" width={112} height={28} priority className="h-7 w-auto" />
-        </Link>
         <h1 className="text-xl font-semibold">Categorias</h1>
-        <button
-          onClick={() => void refetch()}
-          className="rounded-md border px-3 py-1 text-sm hover:bg-gray-50"
-          aria-label="Recarregar categorias"
-        >
-          Recarregar
-        </button>
       </header>
 
       <section className="mb-4">
