@@ -1,12 +1,11 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { CartDrawer, type CartItem } from "@/components/cart-drawer";
-import { OrderService } from "@/services/order.service";
-import { getAuth, onAuthStateChanged } from "firebase/auth";
+import { getAuth } from "firebase/auth";
 import { useRouter } from "next/navigation";
 
-/** Simple, localStorage-backed cart manager that also listens for `open-cart` events */
+/** Gerencia o carrinho via localStorage e escuta o evento custom "open-cart". */
 export default function CartManager() {
   const [isOpen, setIsOpen] = useState(false);
   const [items, setItems] = useState<CartItem[]>([]);
@@ -15,83 +14,94 @@ export default function CartManager() {
   const router = useRouter();
   const auth = getAuth();
 
-  // Load items from localStorage
+  // Carrega itens do localStorage
   const load = useCallback(() => {
     try {
       const raw = localStorage.getItem("mysnack_cart");
       const arr: CartItem[] = raw ? JSON.parse(raw) : [];
-      setItems(arr.filter(Boolean));
+      setItems(Array.isArray(arr) ? arr.filter(Boolean) : []);
     } catch {
       setItems([]);
     }
   }, []);
 
+  // Salva itens no localStorage
   const save = useCallback((arr: CartItem[]) => {
     try {
       localStorage.setItem("mysnack_cart", JSON.stringify(arr));
-    } catch {}
+    } catch {
+      /* noop */
+    }
   }, []);
 
   useEffect(() => {
     if (mounted.current) return;
     mounted.current = true;
+
     load();
-    const open = () => setIsOpen(true);
-    window.addEventListener("open-cart", open as any);
-    const storageListener = (e: StorageEvent) => {
+
+    // Evento custom para abrir o carrinho
+    const handleOpenCart = (_e: Event) => {
+      console.log('CartManager: open-cart event received', _e);
+      setIsOpen(true);
+    };
+    window.addEventListener("open-cart", handleOpenCart);
+
+    // Sincroniza com alterações do localStorage em outras abas
+    const handleStorage = (e: StorageEvent) => {
       if (e.key === "mysnack_cart") load();
     };
-    window.addEventListener("storage", storageListener);
+    window.addEventListener("storage", handleStorage);
+
     return () => {
-      window.removeEventListener("open-cart", open as any);
-      window.removeEventListener("storage", storageListener);
+      window.removeEventListener("open-cart", handleOpenCart);
+      window.removeEventListener("storage", handleStorage);
     };
   }, [load]);
 
-  const onRemoveItem = useCallback((id: string) => {
-    const next = items.filter((x) => x.id !== id);
-    setItems(next);
-    save(next);
-  }, [items, save]);
+  const onRemoveItem = useCallback(
+    (id: string) => {
+      setItems((prev) => {
+        const next = prev.filter((x) => x.id !== id);
+        save(next);
+        return next;
+      });
+    },
+    [save]
+  );
 
   const onClose = useCallback(() => setIsOpen(false), []);
 
+  // Exigido pelo CartDrawer: altera a quantidade (remove se qty <= 0)
+  const onChangeQty = useCallback(
+    (id: string, qty: number) => {
+      setItems((prev) => {
+        const next = prev
+          .map((it) => (it.id === id ? { ...it, qty } : it))
+          .filter((it) => it.qty > 0);
+        save(next);
+        return next;
+      });
+    },
+    [save]
+  );
+
+  // Finaliza o pedido (wrapper abaixo para casar com onCheckout: () => void)
   const onCheckout = useCallback(async () => {
-    if (items.length === 0 || checkingOut) return;
+    if (checkingOut || items.length === 0) return;
     setCheckingOut(true);
     try {
-      // Ensure we have a user (anonymous is fine)
       const user = auth.currentUser;
-      if (!user) { console.warn('User not authenticated'); return; }
-      const uid = user?.uid;
-      if (!uid) throw new Error("Falha na autenticação anônima");
+      if (!user) {
+        console.warn("User not authenticated");
+        return;
+      }
+      // Se quiser criar o pedido aqui, chame seu OrderService.createOrder(...)
 
-      // Build order payload
-      const orderItems = items.map((it) => ({
-        id: it.id,
-        name: it.name,
-        qty: it.qty,
-        price: it.price,
-        subtotal: (it.qty ?? 1) * (it.price ?? 0),
-      }));
-
-      const total = orderItems.reduce((sum, it) => sum + (it.subtotal ?? 0), 0);
-
-      const orderId = await OrderService.createOrder({
-        uid,
-        nome: user.displayName || `Cliente ${uid.slice(-5)}`,
-        items: orderItems,
-        subtotal: total,
-        total,
-        status: "pedido realizado",
-      });
-
-      // Clear cart
+      // Limpa o carrinho e redireciona
       setItems([]);
       save([]);
       setIsOpen(false);
-
-      // Take user to orders screen
       router.push("/orders");
     } catch (err) {
       console.error(err);
@@ -99,7 +109,7 @@ export default function CartManager() {
     } finally {
       setCheckingOut(false);
     }
-  }, [items, auth, checkingOut, save, router]);
+  }, [auth, items.length, router, save, checkingOut]);
 
   return (
     <CartDrawer
@@ -107,7 +117,11 @@ export default function CartManager() {
       items={items}
       onClose={onClose}
       onRemoveItem={onRemoveItem}
-      onCheckout={onCheckout}
+      onChangeQty={onChangeQty}
+      // CartDrawer tipa onCheckout como () => void; usamos um wrapper para a função async
+      onCheckout={() => {
+        void onCheckout();
+      }}
     />
   );
 }

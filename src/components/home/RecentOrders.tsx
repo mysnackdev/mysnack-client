@@ -2,15 +2,16 @@
 
 import React from "react";
 import StatusBadge from "@/components/StatusBadge";
-import Link from "next/link";
-import OrderStatusProgress from "@/components/OrderStatusProgress";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "@/firebase";
 import { OrderService, type SnackOrder } from "@/services/order.service";
 
-function getItemsCount(o: Partial<SnackOrder> & { itemsCount?: number } | any) {
-  if (Array.isArray(o?.items)) return o.items.length;
-  if (typeof o?.itemsCount === "number") return o.itemsCount;
+// Tipo mínimo para contagem de itens (compatível com índice /orders_by_user)
+type OrderLikeForCount = Partial<Pick<SnackOrder, "items">> & { itemsCount?: number };
+
+function getItemsCount(o: OrderLikeForCount): number {
+  if (Array.isArray(o.items)) return o.items.length;
+  if (typeof o.itemsCount === "number") return o.itemsCount;
   return 0;
 }
 
@@ -60,11 +61,13 @@ export default function RecentOrders() {
         <ul className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           {orders.slice(0, 4).map((o) => (
             <li key={o.key} className="rounded-2xl bg-white p-4 shadow-sm">
-              <p className="font-semibold">{o.brand || "Pedido"}</p>
+              <p className="font-semibold">{o.nome || "Pedido"}</p>
               <p className="text-sm text-muted-foreground">
                 {getItemsCount(o)} item(ns) • {formatBRL(o.total ?? 0)}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground"><StatusBadge status={o.status || "—"} /></p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                <StatusBadge status={o.status} />
+              </p>
             </li>
           ))}
           {orders.length === 0 && (

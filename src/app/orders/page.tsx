@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { getAuth, onAuthStateChanged, signInAnonymously } from "firebase/auth";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { OrderService, type SnackOrder } from "@/services/order.service";
 import BottomNav from "@/components/bottom-nav";
 import { Order } from "@/components/order.component";

@@ -44,17 +44,7 @@ import type { FoodStore, ComboItem } from "@/hooks/useStores";
       alert("Não foi possível criar seu pedido agora.");
     }
   }
-
-
-/** Combos/pacotes de ofertas de uma loja */
-export interface ComboItem {
-  id: string;
-  nome: string;
-  preco: number;
-  itens?: Array<{ nome: string; qtd: number }>;
-  imagemUrl?: string;
-}
-
+  
 /** Deal: par (loja, combo) */
 export interface DealItem {
   store: FoodStore;

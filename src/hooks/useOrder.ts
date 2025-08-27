@@ -3,7 +3,7 @@
 import * as React from "react";
 import { auth } from "@/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { OrderService, type SnackOrder, type SnackOrderItem } from "@/services/order.service";
+import { OrderService, type SnackOrderItem } from "@/services/order.service";
 
 /** Rotas que o componente Order pode renderizar */
 export type OrderRoute = "idle" | "login" | "send_password_reset_email" | "register" | "order";
@@ -39,20 +39,31 @@ function routeToStatus(r: OrderRoute): string {
 }
 
 /** Lê itens a partir do 'reorder' salvo localmente (quando o usuário clica em Repetir) */
-function readLastReorder(): SnackOrderItem[] {
+function readLastReorder(): Array<Partial<SnackOrderItem>> {
   try {
     const raw = localStorage.getItem("mysnack_last_reorder");
-    const arr = raw ? (JSON.parse(raw) as SnackOrderItem[]) : [];
-    if (Array.isArray(arr)) return arr.filter(Boolean);
+    const arr = raw ? (JSON.parse(raw) as Array<Partial<SnackOrderItem>>) : [];
+    return Array.isArray(arr) ? arr.filter(Boolean) : [];
   } catch {
-    /* noop */
+    return [];
   }
-  return [];
+}
+
+/** Normaliza itens para o formato SnackOrderItem completo */
+function normalizeItems(items: Array<Partial<SnackOrderItem>>): SnackOrderItem[] {
+  return items.map((it, idx) => {
+    const name = String(it?.name ?? "Item");
+    const qty = Number(it?.qty ?? 1);
+    const price = Number(it?.price ?? 0);
+    const id = String(it?.id ?? `${name}-${idx}`);
+    const subtotal = Number(it?.subtotal ?? qty * price);
+    return { id, name, qty, price, subtotal };
+  });
 }
 
 /** Soma o total de itens */
 function calcTotal(items: SnackOrderItem[]): number {
-  return items.reduce((acc, it) => acc + Number(it.price || 0) * Number(it.qty || 0), 0);
+  return items.reduce((acc, it) => acc + Number(it.subtotal || it.price * it.qty), 0);
 }
 
 export function useOrder(): UseOrderApi {
@@ -96,41 +107,42 @@ export function useOrder(): UseOrderApi {
   const handleCreateOrder = React.useCallback(
     async (e?: React.FormEvent<HTMLFormElement>) => {
       if (e) e.preventDefault();
-      const userId = uid;
-      if (!userId) {
+      if (!uid) {
         setCurrentRoute("login");
         return;
       }
 
       // monta itens: usa "repetir" se existir; senão, um item simbólico
-      const items = readLastReorder();
+      const rawItems = readLastReorder();
+      const normalized = normalizeItems(rawItems);
       const safeItems: SnackOrderItem[] =
-        items.length > 0
-          ? items
-          : [{ name: "Pedido MySnack", qty: 1, price: 0 }];
+        normalized.length > 0
+          ? normalized
+          : [{ id: "pedido-mysnack", name: "Pedido MySnack", qty: 1, price: 0, subtotal: 0 }];
 
-      const order: Omit<SnackOrder, "key"> = {
-        brand: "MySnack",
-        items: safeItems,
-        total: calcTotal(safeItems),
-        status: "waiting for acceptance",
-        createdAt: Date.now(),
-      };
+      const subtotal = calcTotal(safeItems);
+      const total = subtotal;
 
       try {
-        await OrderService.createOrder(userId, order);
+        await OrderService.createOrder({
+          uid,
+          nome: userName || `Cliente ${uid.slice(-5)}`,
+          items: safeItems,
+          subtotal,
+          total,
+          // status opcional; o service já define "pedido realizado"
+        });
+
         // fecha modal e limpa “reorder”
-        try {
-          localStorage.removeItem("mysnack_last_reorder");
-        } catch { /* noop */ }
+        try { localStorage.removeItem("mysnack_last_reorder"); } catch { /* noop */ }
         setIsModalVisible(false);
         setCurrentRoute("idle");
       } catch (err) {
-        // mantém o modal aberto para o usuário tentar novamente
         console.error("Não foi possível criar o pedido:", err);
+        // mantém modal aberto para tentativa novamente
       }
     },
-    [uid],
+    [uid, userName],
   );
 
   return {

@@ -1,17 +1,26 @@
 "use client";
 import React from "react";
-import { ORDER_STATUS_FLOW } from "@/constants/order-status";
+import { statusIndex } from "@/constants/order-status";
 
-export default function StatusBadge({ status }: { status: string }) {
-  const idx = ORDER_STATUS_FLOW.indexOf(status as any);
+type Props = { status: string };
+
+export default function StatusBadge({ status }: Props) {
+  const idx = statusIndex(status); // sem any
   const colors = [
-    "bg-zinc-200 text-zinc-800",
-    "bg-blue-200 text-blue-800",
-    "bg-amber-200 text-amber-900",
-    "bg-violet-200 text-violet-900",
-    "bg-cyan-200 text-cyan-900",
-    "bg-green-200 text-green-800",
-  ];
-  const klass = colors[Math.max(0, Math.min(colors.length - 1, idx))] || "bg-zinc-200 text-zinc-800";
-  return <span className={`inline-block rounded-full px-2 py-0.5 text-xs ${klass}`}>{status}</span>;
+    "bg-zinc-200 text-zinc-800",   // pedido realizado
+    "bg-blue-200 text-blue-800",   // pedido confirmado
+    "bg-amber-200 text-amber-900", // sendo preparado
+    "bg-violet-200 text-violet-900", // pronto
+    "bg-cyan-200 text-cyan-900",   // indo até você
+    "bg-green-200 text-green-800", // entregue
+  ] as const;
+
+  const safeIdx = Math.max(0, Math.min(colors.length - 1, idx));
+  const klass = colors[safeIdx] ?? colors[0];
+
+  return (
+    <span className={`inline-block rounded-full px-2 py-0.5 text-xs ${klass}`}>
+      {status}
+    </span>
+  );
 }
