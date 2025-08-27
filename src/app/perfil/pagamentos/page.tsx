@@ -71,7 +71,7 @@ export default function PedidosPage() {
       {isModalVisible && <Order />}
 
       {/* Navbar inferior fixa */}
-      <BottomNav active="pedidos" />
+      <BottomNav active="orders" />
     </main>
   );
 }

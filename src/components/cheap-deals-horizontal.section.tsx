@@ -3,7 +3,48 @@
 import React, { useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import type { FoodStore } from "@/hooks/useStores";
+import type { FoodStore, ComboItem } from "@/hooks/useStores";
+
+  function addToCart(store: FoodStore, combo: ComboItem) {
+    try {
+      const raw = localStorage.getItem("mysnack_cart");
+      const arr: Array<{ id: string; name: string; qty: number; price: number }> = raw ? JSON.parse(raw) : [];
+      const id = `${store?.nome || "loja"}::${combo?.nome || "combo"}`;
+      const existing = arr.find((x) => x.id === id);
+      if (existing) {
+        existing.qty = (existing.qty || 1) + 1;
+      } else {
+        arr.push({ id, name: `${store.nome} • ${combo.nome}`, qty: 1, price: combo.preco });
+      }
+      localStorage.setItem("mysnack_cart", JSON.stringify(arr));
+      try { window.dispatchEvent(new Event("open-cart")); } catch {}
+    } catch {
+      alert("Não foi possível adicionar ao carrinho.");
+    }
+  }
+
+  async function orderNow(store: FoodStore, combo: ComboItem) {
+    try {
+      const { getAuth } = await import("firebase/auth");
+      const { OrderService } = await import("@/services/order.service");
+      const auth = getAuth();
+      const user = auth.currentUser;
+      if (!user) { console.warn('User not authenticated'); return; }
+      const uid = user?.uid as string;
+      await OrderService.createOrder({
+        uid,
+        nome: user?.displayName || `Cliente ${uid.slice(-5)}`,
+        items: [{ id: combo.nome, name: combo.nome, qty: 1, price: combo.preco, subtotal: combo.preco }],
+        subtotal: combo.preco,
+        total: combo.preco,
+        status: "pedido realizado",
+      });
+      if (typeof window !== "undefined") window.location.href = "/orders";
+    } catch {
+      alert("Não foi possível criar seu pedido agora.");
+    }
+  }
+
 
 /** Combos/pacotes de ofertas de uma loja */
 export interface ComboItem {
@@ -98,11 +139,8 @@ export default function CheapDealsHorizontalSection({
       {/* Lista horizontal */}
       <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
         {baratos.map(({ store, combo }) => (
-          <Link
-            key={`${store.id}-${combo.id}`}
-            href={`/loja/${store.id}?combo=${encodeURIComponent(combo.id)}`}
-            className="snap-start w-[240px] shrink-0 rounded-xl border bg-white shadow-sm hover:shadow-md transition"
-          >
+          <div key={`${store.id}-${combo.id}`} className="snap-start w-[240px] shrink-0 rounded-xl border bg-white shadow-sm hover:shadow-md transition">
+  <Link href={`/loja/${store.id}?combo=${encodeURIComponent(combo.id)}`} className="block">
             <div className="aspect-[5/3] w-full overflow-hidden rounded-t-xl bg-gray-100">
               {combo.imagemUrl ? (
                 <Image
@@ -126,7 +164,12 @@ export default function CheapDealsHorizontalSection({
               </p>
               <p className="mt-2 text-base font-bold">{formatBRL(combo.preco)}</p>
             </div>
-          </Link>
+  </Link>
+  <div className="px-3 pb-3 flex gap-2">
+    <button onClick={() => addToCart(store, combo)} className="flex-1 rounded-md bg-black px-3 py-2 text-xs font-semibold text-white">Adicionar</button>
+    <button onClick={() => orderNow(store, combo)} className="flex-1 rounded-md border px-3 py-2 text-xs font-semibold">Pedir agora</button>
+  </div>
+</div>
         ))}
       </div>
     </section>

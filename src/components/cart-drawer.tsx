@@ -9,6 +9,7 @@ export interface CartItem {
   price: number;
 }
 
+
 export interface CartDrawerProps {
   isOpen: boolean;
   items: CartItem[];

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, Search, FileText, User } from "lucide-react";
 
-type Tab = "inicio" | "busca" | "pedidos" | "perfil";
+type Tab = "inicio" | "busca" | "orders" | "perfil";
 
 export default function BottomNav({ active }: { active?: Tab }) {
   const pathname = usePathname();
@@ -17,8 +17,8 @@ export default function BottomNav({ active }: { active?: Tab }) {
         return "inicio";
       case "/busca":
         return "busca";
-      case "/pedidos":
-        return "pedidos";
+      case "/orders":
+        return "orders";
       case "/perfil":
         return "perfil";
       default:
@@ -45,9 +45,9 @@ export default function BottomNav({ active }: { active?: Tab }) {
             <Search className="w-5 h-5" />
             Busca
           </Link>
-          <Link href="/pedidos" className={`${base} ${current === "pedidos" ? activeCls : inactive}`}>
+          <Link href="/orders" className={`${base} ${current === "orders" ? activeCls : inactive}`}>
             <FileText className="w-5 h-5" />
-            Pedidos
+            Orders
           </Link>
           <Link href="/perfil" className={`${base} ${current === "perfil" ? activeCls : inactive}`}>
             <User className="w-5 h-5" />

@@ -12,6 +12,7 @@ const nunitoSans = Nunito_Sans({
 
 import BottomNav from "@/components/BottomNav";
 import HeaderBar from "@/components/HeaderBar";
+import CartManager from "@/components/CartManager";
 
 import { AuthProvider } from "@/hooks/useAuth";
 
@@ -30,6 +31,8 @@ export default function RootLayout({
           <HeaderBar />
           <main className="max-w-screen-xl mx-auto px-4">{children}</main>
           <BottomNav />
+          {/* Cart Drawer Manager */}
+          <CartManager />
         </AuthProvider>
       </body>
     </html>

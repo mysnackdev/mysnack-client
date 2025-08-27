@@ -38,10 +38,10 @@ export default function BottomNav() {
             pathname?.startsWith("/busca") || false,
           )}
           {item(
-            "/pedidos",
+            "/orders",
             "Pedidos",
             <FileText className="h-5 w-5" />,
-            pathname?.startsWith("/pedidos") || false,
+            pathname?.startsWith("/orders") || false,
           )}
           {item(
             "/perfil",
