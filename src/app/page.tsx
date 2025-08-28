@@ -8,7 +8,6 @@ import HighlightsDots from "@/components/home/HighlightsDots";
 import PromoGradientCard from "@/components/home/PromoGradientCard";
 
 import CheapDealsHorizontalSection from "@/components/cheap-deals-horizontal.section";
-import HighlightsSection from "@/components/highlights.section";
 import MallStoresSection from "@/components/mall-stores.section";
 import RecentOrders from "@/components/home/RecentOrders";
 
@@ -34,7 +33,7 @@ export default function Page() {
 
       {/* Baratinhos do dia */}
       <section className="mt-8">
-        <h3 className="px-1 text-lg font-semibold">Baratinhos do dia</h3>
+        <h3 className="px-1 text-lg font-semibold">Baratinhos no MySnack</h3>
         {loading && <p className="mt-2 px-1 text-sm text-muted-foreground">Carregando lojas…</p>}
         {error && !loading && (
           <p className="mt-2 px-1 text-sm text-red-600">Erro ao carregar: {error}</p>
@@ -43,13 +42,6 @@ export default function Page() {
         {/* Escopo que oculta barras de rolagem do carrossel sem remover o scroll */}
         <div className="no-scrollbar-scope mt-2">
           <CheapDealsHorizontalSection stores={stores} title="" limit={10} />
-        </div>
-      </section>
-
-      {/* Destaques */}
-      <section className="mt-8">
-        <div className="mt-2">
-          <HighlightsSection stores={stores} limit={6} />
         </div>
       </section>
 

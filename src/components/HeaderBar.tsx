@@ -46,12 +46,6 @@ export default function HeaderBar({ title, rightSlot }: HeaderBarProps) {
 
         {rightSlot ?? (
           <div className="flex items-center gap-2">
-            <Link
-              href="/parceiro"
-              className="inline-flex items-center gap-1 rounded-full border px-3 py-1 text-sm hover:bg-gray-50"
-            >
-              Parceiro <ExternalLink className="h-4 w-4" />
-            </Link>
             <button
               type="button"
               aria-label="Carrinho"
