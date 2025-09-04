@@ -46,6 +46,15 @@ export default function CartManager() {
       setIsOpen(true);
     };
     window.addEventListener("open-cart", handleOpenCart);
+    const handleCartUpdated = () => {
+      try {
+        const raw = localStorage.getItem("mysnack_cart");
+        const parsed = raw ? JSON.parse(raw) : [];
+        setItems(Array.isArray(parsed) ? parsed : []);
+        setIsOpen(true);
+      } catch {}
+    };
+    window.addEventListener("cart-updated", handleCartUpdated);
 
     // Sincroniza com alterações do localStorage em outras abas
     const handleStorage = (e: StorageEvent) => {
@@ -55,6 +64,7 @@ export default function CartManager() {
 
     return () => {
       window.removeEventListener("open-cart", handleOpenCart);
+      window.removeEventListener("cart-updated", handleCartUpdated);
       window.removeEventListener("storage", handleStorage);
     };
   }, [load]);

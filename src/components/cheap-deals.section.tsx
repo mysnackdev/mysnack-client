@@ -28,9 +28,10 @@ export default function CheapDeals() {
         });
       }
       localStorage.setItem("mysnack_cart", JSON.stringify(arr));
+      window.dispatchEvent(new Event("cart-updated"));
       window.dispatchEvent(new Event("open-cart"));
     } catch {
-      // ignora erros de parse/localStorage
+      // ignora erros
     }
   }
 
@@ -39,9 +40,13 @@ export default function CheapDeals() {
   const baratos = useMemo(() => {
     const items: DealItem[] = [];
     (stores ?? []).forEach((store) => {
-      (store.pacotes ?? []).forEach((combo) => items.push({ store, combo }));
+      (store.pacotes ?? []).forEach((combo) =>
+        items.push({ store, combo })
+      );
     });
-    return items.sort((a, b) => a.combo.preco - b.combo.preco).slice(0, 6);
+    return items
+      .sort((a, b) => a.combo.preco - b.combo.preco)
+      .slice(0, 6);
   }, [stores]);
 
   if (loading) return <div className="card">Carregando ofertas…</div>;
@@ -67,7 +72,7 @@ export default function CheapDeals() {
                   R$ {it.combo.preco.toFixed(2)}
                 </span>
                 <Link
-                  href={`/categorias?store=${encodeURIComponent(it.store.nome)}`}
+                  href={`/produto/${encodeURIComponent(it.combo.id || it.combo.nome)}`}
                   className="btn-ghost text-sm"
                 >
                   Detalhes
@@ -81,7 +86,7 @@ export default function CheapDeals() {
                   Pedir
                 </button>
                 <Link
-                  href={`/categorias?store=${encodeURIComponent(it.store.nome)}`}
+                  href={`/produto/${encodeURIComponent(it.combo.id || it.combo.nome)}`}
                   className="btn-ghost text-sm"
                 >
                   Detalhes
@@ -112,7 +117,7 @@ export default function CheapDeals() {
               </button>
               <span className="font-bold">R$ {it.combo.preco.toFixed(2)}</span>
               <Link
-                href={`/categorias?store=${encodeURIComponent(it.store.nome)}`}
+                href={`/produto/${encodeURIComponent(it.combo.id || it.combo.nome)}`}
                 className="btn-ghost text-sm"
               >
                 Detalhes

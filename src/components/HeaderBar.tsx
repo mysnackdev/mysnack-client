@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import React from "react";
-import { ExternalLink, ShoppingCart, Bell } from "lucide-react";
+import { ShoppingCart, Bell } from "lucide-react";
 
 export interface HeaderBarProps {
   title?: string;

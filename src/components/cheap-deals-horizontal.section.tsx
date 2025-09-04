@@ -57,13 +57,13 @@ export default function CheapDealsHorizontalSection({
       <div className="no-scrollbar -mx-4 mt-2 overflow-x-auto px-4">
         <ul className="flex snap-x snap-mandatory gap-4 pb-2">
           {baratos.map(({ store, combo }) => {
-            // ✅ sem erro de tipo
             const img = combo.imagemUrl ?? pickStoreImage(store) ?? "";
+            const productId = encodeURIComponent(combo.id || combo.nome); // ✅ id para a rota dinâmica
 
             return (
-              <li key={`${store.id}-${combo.id}`} className="snap-start w-[180px] sm:w-[190px] shrink-0">
+              <li key={`${store.id}-${combo.id || combo.nome}`} className="snap-start w-[180px] sm:w-[190px] shrink-0">
                 <Link
-                  href={`/loja/${store.id}?combo=${encodeURIComponent(combo.id)}`}
+                  href={`/produto/${productId}`} // ✅ agora aponta para /produto/[id]
                   className="block rounded-md pt-[2px] focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
                 >
                   {/* conteúdo centralizado */}

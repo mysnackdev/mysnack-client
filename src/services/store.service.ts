@@ -1,6 +1,6 @@
 "use client";
 
-import { getFunctions, httpsCallable, type HttpsCallableResult } from "firebase/functions";
+import { getFunctions, httpsCallable } from "firebase/functions";
 
 /** Tipos que espelham sua Cloud Function getFoodStores */
 export interface CFContactInfo {
@@ -17,12 +17,26 @@ export interface CFBundle {
 }
 
 export interface CFFoodStore {
-  id?: string;               // pode vir do backend
+  id?: string;
   name: string;
-  category: string;
-  location: string;
+  category?: string;
+  location?: string;
   contact: CFContactInfo;
-  bundles: CFBundle[];
+  /** novos: */
+  description?: string;
+  minimumOrder?: number;
+  opening_hours?: Record<string, { enabled: boolean; open: string; close: string }>;
+  payments?: {
+    onDelivery?: string[];
+    appSite?: string[];
+    mysnackAwards?: string[];
+    banking?: string[];
+  };
+  menus?: unknown;
+  isOpenNow?: boolean;
+  updatedAt?: number;
+  /** legado opcional */
+  bundles?: CFBundle[];
 }
 
 export interface GetFoodStoresResult {
@@ -40,13 +54,12 @@ export interface GetStoresOptions {
 }
 
 export class StoreService {
-  /** Busca lojas no Cloud Functions (onCall: getFoodStores) */
-  static async getStores(opts: GetStoresOptions = {}): Promise<GetFoodStoresResult> {
-    // Usa região definida no .env se existir
-    const region = opts.region ?? process.env.NEXT_PUBLIC_FIREBASE_FUNCTIONS_REGION ?? undefined;
+  static async getStores() {
+    const region =
+      process.env.NEXT_PUBLIC_FIREBASE_FUNCTIONS_REGION || "us-central1"; // <— bate com o backend
     const functions = getFunctions(undefined, region);
     const callable = httpsCallable<unknown, GetFoodStoresResult>(functions, "getFoodStores");
-    const res: HttpsCallableResult<GetFoodStoresResult> = await callable();
+    const res = await callable();
     return res.data;
   }
 }

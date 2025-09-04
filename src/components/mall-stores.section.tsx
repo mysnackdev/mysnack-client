@@ -9,6 +9,15 @@ function safeText(v: string | undefined): string {
   return (v ?? "").trim();
 }
 
+/** Lê com segurança uma prop string opcional sem usar `any` */
+function getStringProp(obj: unknown, key: string): string | undefined {
+  if (obj && typeof obj === "object") {
+    const v = (obj as Record<string, unknown>)[key];
+    return typeof v === "string" ? v : undefined;
+  }
+  return undefined;
+}
+
 export default function MallStoresSection() {
   const { stores, loading, error } = useStores();
 
@@ -16,7 +25,7 @@ export default function MallStoresSection() {
   const shopping = useMemo<FoodStore[]>(() => {
     const rx = /shopping/i;
     return (stores ?? []).filter((s) => {
-      const loc = safeText(s.localizacao);
+      const loc = safeText(getStringProp(s, "localizacao"));
       const nome = safeText(s.nome);
       const categoria = safeText(s.categoria);
       // considera localizacao, nome e categoria para aumentar recall
@@ -38,34 +47,40 @@ export default function MallStoresSection() {
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {shopping.map((s) => (
-          <Link
-            key={s.id}
-            href={`/categorias?store=${encodeURIComponent(s.nome)}`}
-            className="overflow-hidden rounded-xl border bg-white shadow-sm transition hover:shadow-md"
-          >
-            <div className="aspect-[16/9] w-full overflow-hidden bg-gray-100">
-              {/* Se tiver imagem em algum campo futuro, dá pra exibir aqui.
-                 Mantemos um placeholder por enquanto. */}
-              <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">
-                {s.categoria ?? "Loja"}
-              </div>
-            </div>
+        {shopping.map((s) => {
+          const endereco = getStringProp(s, "endereco");
+          const localizacao = getStringProp(s, "localizacao");
 
-            <div className="p-3">
-              <p className="line-clamp-1 text-xs text-muted-foreground">
-                {s.localizacao ?? "—"}
-              </p>
-              <h3 className="line-clamp-1 text-base font-semibold">{s.nome}</h3>
-              {s.endereco && (
-                <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{s.endereco}</p>
-              )}
-              {s.telefone && (
-                <p className="text-xs text-muted-foreground">{s.telefone}</p>
-              )}
-            </div>
-          </Link>
-        ))}
+          return (
+            <Link
+              key={s.id}
+              href={`/categorias?store=${encodeURIComponent(s.nome)}`}
+              className="overflow-hidden rounded-xl border bg-white shadow-sm transition hover:shadow-md"
+            >
+              <div className="aspect-[16/9] w-full overflow-hidden bg-gray-100">
+                {/* Placeholder de imagem */}
+                <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">
+                  {s.categoria ?? "Loja"}
+                </div>
+              </div>
+
+              <div className="p-3">
+                <p className="line-clamp-1 text-xs text-muted-foreground">
+                  {localizacao ?? "—"}
+                </p>
+                <h3 className="line-clamp-1 text-base font-semibold">{s.nome}</h3>
+                {endereco && (
+                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                    {endereco}
+                  </p>
+                )}
+                {s.telefone && (
+                  <p className="text-xs text-muted-foreground">{s.telefone}</p>
+                )}
+              </div>
+            </Link>
+          );
+        })}
       </div>
     </section>
   );

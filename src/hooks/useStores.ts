@@ -17,11 +17,23 @@ export interface FoodStore {
   id: string;
   nome: string;
   categoria?: string;
-  endereco?: string;
-  telefone?: string;
   localizacao?: string;
-  contato?: string;      // website
-  pacotes?: ComboItem[]; // normalizado de 'bundles' | 'pacotes' | 'packages'
+  telefone?: string;
+  contato?: string;
+  /** combos/pacotes */
+  pacotes?: ComboItem[];
+  /** novos campos do backoffice/CF */
+  pedidoMinimo?: number;
+  horarios?: Record<string, { enabled: boolean; open: string; close: string }>;
+  pagamentos?: {
+    onDelivery?: string[];
+    appSite?: string[];
+    mysnackAwards?: string[];
+    banking?: string[];
+  };
+  menus?: unknown;
+  abertoAgora?: boolean;
+  atualizadoEm?: number;
 }
 
 export interface UseStoresReturn {
@@ -59,7 +71,6 @@ function makeIdFromName(name: string, idx: number): string {
 /** Converte **GetFoodStoresResult** (oficial do CF) -> modelo do app */
 function normalizeFromCF(cf: GetFoodStoresResult): FoodStore[] {
   const stores: FoodStore[] = (cf.food_stores ?? []).map((raw, idx) => {
-    // <<< sem cast para UnknownRecord
     const id = raw.id ?? makeIdFromName(raw.name, idx);
     const nome = raw.name || "Loja";
     const categoria = raw.category || undefined;
@@ -176,9 +187,8 @@ export function useStores(): UseStoresReturn {
       setError(null);
 
       // Retorno tipado (GetFoodStoresResult)
-      const raw = await StoreService.getStores({
-        signal: controllerRef.current.signal,
-      });
+      // ⬇️ Ajuste: getStores() sem argumentos (compatível com sua service atual)
+      const raw = await StoreService.getStores();
 
       setStores(normalizeStores(raw));
     } catch (e) {
