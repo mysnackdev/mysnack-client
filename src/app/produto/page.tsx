@@ -1,9 +1,6 @@
 import React, { Suspense } from "react";
 import ProdutoClientPage from "./ProdutoClientPage";
 
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-
 export default function Page() {
   return (
     <Suspense
