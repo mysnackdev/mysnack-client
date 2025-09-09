@@ -3,11 +3,12 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: "export",
   images: {
-    // Necessário para gerar `out/` quando você usa <Image /> do next/image
     unoptimized: true,
     remotePatterns: [
       { protocol: "https", hostname: "images.unsplash.com" },
-      // adicione aqui outros hosts remotos que você usa
+      { protocol: "https", hostname: "firebasestorage.googleapis.com" }, // fotos do cardápio
+      { protocol: "https", hostname: "lh3.googleusercontent.com" },      // (se usar avatars Google)
+      // adicione outros domínios de imagem que seu backoffice/lojas usam
     ],
   },
 };

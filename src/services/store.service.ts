@@ -1,42 +1,18 @@
 "use client";
-
-import { getFunctions, httpsCallable } from "firebase/functions";
-
-/** Tipos que espelham sua Cloud Function getFoodStores */
-export interface CFContactInfo {
-  phone: string;
-  website: string;
-}
-
-export interface CFBundle {
-  id?: string;               // pode vir do backend
-  name: string;
-  description: string;
-  price: number;
-  image?: string;            // pode vir do backend
-}
+import { CatalogService, type StoreSummary } from "@/services/catalog.service";
 
 export interface CFFoodStore {
-  id?: string;
+  id: string;
   name: string;
   category?: string;
-  location?: string;
-  contact: CFContactInfo;
-  /** novos: */
+  contact?: { phone?: string; website?: string };
   description?: string;
   minimumOrder?: number;
-  opening_hours?: Record<string, { enabled: boolean; open: string; close: string }>;
-  payments?: {
-    onDelivery?: string[];
-    appSite?: string[];
-    mysnackAwards?: string[];
-    banking?: string[];
-  };
-  menus?: unknown;
+  opening_hours?: unknown;
   isOpenNow?: boolean;
-  updatedAt?: number;
-  /** legado opcional */
-  bundles?: CFBundle[];
+  online?: boolean;
+  imageUrl?: string;
+  location?: string;
 }
 
 export interface GetFoodStoresResult {
@@ -46,20 +22,20 @@ export interface GetFoodStoresResult {
   food_stores: CFFoodStore[];
 }
 
-export interface GetStoresOptions {
-  /** Mantido pela assinatura do hook; httpsCallable não cancela de fato. */
-  signal?: AbortSignal;
-  /** Região do Cloud Functions (ex.: "us-central1"). Pode vir do .env */
-  region?: string;
-}
-
 export class StoreService {
-  static async getStores() {
-    const region =
-      process.env.NEXT_PUBLIC_FIREBASE_FUNCTIONS_REGION || "us-central1"; // <— bate com o backend
-    const functions = getFunctions(undefined, region);
-    const callable = httpsCallable<unknown, GetFoodStoresResult>(functions, "getFoodStores");
-    const res = await callable();
-    return res.data;
+  static async getStores(): Promise<GetFoodStoresResult> {
+    const list: StoreSummary[] = await CatalogService.getStoresStatus();
+    const mapped: CFFoodStore[] = list.map((s) => ({
+      id: s.id,
+      name: s.displayName || s.name,
+      category: s.categoria,
+      contact: { phone: s.phone, website: s.website },
+      minimumOrder: s.minimo,
+      isOpenNow: s.online,
+      online: s.online,
+      imageUrl: s.imageUrl,
+      location: s.location,
+    }));
+    return { mall: "", city: "", state: "", food_stores: mapped };
   }
 }

@@ -72,7 +72,7 @@ export default function CheapDeals() {
                   R$ {it.combo.preco.toFixed(2)}
                 </span>
                 <Link
-                  href={`/produto/${encodeURIComponent(it.combo.id || it.combo.nome)}`}
+                  href={`/produto?id=${encodeURIComponent(it.combo.id || it.combo.nome)}`}
                   className="btn-ghost text-sm"
                 >
                   Detalhes
@@ -86,7 +86,7 @@ export default function CheapDeals() {
                   Pedir
                 </button>
                 <Link
-                  href={`/produto/${encodeURIComponent(it.combo.id || it.combo.nome)}`}
+                  href={`/produto?id=${encodeURIComponent(it.combo.id || it.combo.nome)}`}
                   className="btn-ghost text-sm"
                 >
                   Detalhes
@@ -117,7 +117,7 @@ export default function CheapDeals() {
               </button>
               <span className="font-bold">R$ {it.combo.preco.toFixed(2)}</span>
               <Link
-                href={`/produto/${encodeURIComponent(it.combo.id || it.combo.nome)}`}
+                href={`/produto?id=${encodeURIComponent(it.combo.id || it.combo.nome)}`}
                 className="btn-ghost text-sm"
               >
                 Detalhes

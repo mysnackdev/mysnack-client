@@ -1,205 +1,227 @@
-import { db } from "@/firebase";
-import {
-  ref,
-  push,
-  update,
-  onValue,
-  query,
-  limitToLast,
-  Unsubscribe,
-  DataSnapshot,
-} from "firebase/database";
-import type { OrderStatus } from "@/constants/order-status";
+"use client";
 
-export interface SnackOrderItem {
+import {
+  getDatabase,
+  ref,
+  query,
+  orderByChild,
+  limitToLast,
+  onValue,
+  DataSnapshot,
+  push,
+  set,
+} from "firebase/database";
+import { getAuth } from "firebase/auth";
+import { getFunctions, httpsCallable } from "firebase/functions";
+
+/** Status aceitos em regras */
+export type OrderStatus =
+  | "pedido realizado"
+  | "pedido confirmado"
+  | "pedido sendo preparado"
+  | "pedido pronto"
+  | "pedido indo até você"
+  | "pedido entregue";
+
+export type SnackOrderItem = {
   id: string;
   name: string;
-  qty: number;
   price: number;
-  subtotal: number;
-}
+  qty?: number;
+  /** usado por partes do app; opcional para compatibilidade */
+  subtotal?: number;
+};
 
-export interface SnackOrder {
+export type SnackOrder = {
   key: string;
   uid: string;
-  nome: string;
+  storeId: string;
+  status: OrderStatus;
+  createdAt: number;
   items: SnackOrderItem[];
-  subtotal: number;
-  total: number;
-  status: OrderStatus;
-  createdAt: number;
-  cancelled?: boolean;
+};
+
+type CreateOrderPayload = {
+  /** se omitido, usa o usuário autenticado */
+  uid?: string;
+  storeId?: string;
+  items: SnackOrderItem[];
+  subtotal?: number;
+  total?: number;
+  status?: OrderStatus;
+  /** nome do cliente (usado por flows antigos) */
+  nome?: string;
+};
+
+type CreateOrderResult = { orderId: string };
+
+const REGION = process.env.NEXT_PUBLIC_FIREBASE_FUNCTIONS_REGION || "us-central1";
+
+/** utilitário: converte item para formato seguro (sem any) */
+function normalizeItem(it: SnackOrderItem): SnackOrderItem {
+  const qty = typeof it.qty === "number" && it.qty > 0 ? it.qty : 1;
+  const price = Number(it.price || 0);
+  const subtotal =
+    typeof it.subtotal === "number" ? it.subtotal : qty * price;
+
+  return {
+    id: String(it.id),
+    name: String(it.name),
+    price,
+    qty,
+    subtotal,
+  };
 }
 
-type ListenOpts = { limit?: number };
-
-/** Índice enxuto salvo em /orders_by_user/{uid}/{orderId} */
-interface UserOrderIndex {
-  key: string;
-  uid: string;
-  nome: string;
-  subtotal: number;
-  total: number;
-  status: OrderStatus;
-  createdAt: number;
-  itemsCount: number;
-}
-
-/** Usado internamente para cachear parciais até o detalhe do pedido chegar */
-type PartialOrder = Partial<SnackOrder> & { key?: string };
-
-export class OrderService {
-  /** Compat: API antiga `createOrder(payload)` — mantém a mesma assinatura usada pelo CartManager */
-  static async createOrder(payload: {
-    uid: string;
-    nome: string;
-    items: SnackOrderItem[];
-    subtotal: number;
-    total: number;
-    status?: OrderStatus;
-  }): Promise<string> {
-    const { uid, nome, items, subtotal, total } = payload;
-    const created = await OrderService.create(uid, { nome, items, subtotal, total });
-    return created.key;
-  }
-
-  static async create(
-    uid: string,
-    data: Omit<SnackOrder, "key" | "uid" | "status" | "createdAt">
-  ): Promise<SnackOrder> {
-    const orderId = push(ref(db, "orders")).key as string;
-    const createdAt = Date.now();
-    const status: OrderStatus = "pedido realizado";
-
-    const payload: SnackOrder = {
-      key: orderId,
-      uid,
-      nome: data.nome,
-      items: data.items,
-      subtotal: data.subtotal,
-      total: data.total,
-      status,
-      createdAt,
-      cancelled: data.cancelled,
+/** utilitário: transforma RTDB snapshot de uma lista de pedidos em array tipado */
+function snapshotToOrders(snap: DataSnapshot): SnackOrder[] {
+  const list: SnackOrder[] = [];
+  snap.forEach((c) => {
+    const v = (c.val() ?? {}) as Partial<SnackOrder> & {
+      items?: unknown;
+      key?: string;
     };
-
-    const indexEntry: UserOrderIndex = {
-      key: orderId,
-      uid,
-      nome: data.nome,
-      subtotal: data.subtotal,
-      total: data.total,
-      status,
-      createdAt,
-      itemsCount: data.items?.length ?? 0,
-    };
-
-    const updates: Record<string, SnackOrder | UserOrderIndex> = {};
-    updates[`/orders/${orderId}`] = payload;
-    updates[`/orders_by_user/${uid}/${orderId}`] = indexEntry;
-
-    await update(ref(db), updates as Record<string, unknown>);
-    return payload;
-  }
-
-  static subscribeOrder(orderId: string, cb: (order: SnackOrder | null) => void): Unsubscribe {
-    const r = ref(db, `orders/${orderId}`);
-    return onValue(r, (snap: DataSnapshot) => {
-      const val = snap.val() as SnackOrder | null;
-      cb(snap.exists() && val ? { ...val, key: orderId } : null);
-    });
-  }
-
-  static subscribeUserOrders(uid: string, cb: (orders: SnackOrder[]) => void): Unsubscribe {
-    const indexRef = query(ref(db, `orders_by_user/${uid}`), limitToLast(100));
-    const orderUnsubs = new Map<string, Unsubscribe>();
-    let cache: Record<string, PartialOrder> = {};
-
-    const toSnack = (key: string, o: PartialOrder): SnackOrder => ({
-      key,
-      uid: o.uid ?? "",
-      nome: o.nome ?? "",
-      items: o.items ?? [],
-      subtotal: o.subtotal ?? 0,
-      total: o.total ?? 0,
-      status: (o.status ?? "pedido realizado") as OrderStatus,
-      createdAt: o.createdAt ?? 0,
-      cancelled: o.cancelled,
-    });
-
-    const emit = () => {
-      const list = Object.keys(cache)
-        .map((id) => toSnack(id, cache[id]))
-        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-      cb(list);
-    };
-
-    const unsubIndex = onValue(indexRef, (snap: DataSnapshot) => {
-      const index = (snap.val() as Record<string, UserOrderIndex> | null) ?? {};
-
-      // Recria cache mesclando índice com o que já tínhamos
-      cache = Object.fromEntries(
-        Object.keys(index).map((id) => [id, { ...cache[id], ...index[id] }]),
+    const rawItems = Array.isArray(v.items)
+      ? (v.items as unknown[])
+      : typeof v.items === "object" && v.items !== null
+      ? Object.values(v.items as Record<string, unknown>)
+      : [];
+    const items: SnackOrderItem[] = rawItems
+      .map((x) => x as Partial<SnackOrderItem>)
+      .filter(Boolean)
+      .map((x, idx) =>
+        normalizeItem({
+          id: String(x?.id ?? `item-${idx}`),
+          name: String(x?.name ?? "Item"),
+          price: Number(x?.price ?? 0),
+          qty: typeof x?.qty === "number" ? x?.qty : 1,
+          subtotal:
+            typeof x?.subtotal === "number"
+              ? x?.subtotal
+              : Number(x?.price ?? 0) * (typeof x?.qty === "number" ? x?.qty : 1),
+        })
       );
 
-      emit();
-
-      const ids = Object.keys(index);
-
-      // Desinscreve pedidos que saíram do índice
-      for (const [id, un] of orderUnsubs) {
-        if (!ids.includes(id)) {
-          un();
-          orderUnsubs.delete(id);
-        }
-      }
-
-      // Garante listener em cada pedido indexado
-      ids.forEach((id) => {
-        if (orderUnsubs.has(id)) return;
-        const oref = ref(db, `orders/${id}`);
-        const un = onValue(oref, (osnap: DataSnapshot) => {
-          const order = osnap.val() as Partial<SnackOrder> | null;
-          if (order) {
-            cache[id] = { ...(cache[id] || {}), ...order, key: id };
-            emit();
-          }
-        });
-        orderUnsubs.set(id, un);
-      });
-    });
-
-    return () => {
-      unsubIndex();
-      for (const [, un] of orderUnsubs) un();
-      orderUnsubs.clear();
+    const order: SnackOrder = {
+      key: String(v.key ?? (c.key as string)),
+      uid: String(v.uid ?? ""),
+      storeId: String(v.storeId ?? ""),
+      status: (v.status as OrderStatus) ?? "pedido realizado",
+      createdAt: Number(v.createdAt ?? Date.now()),
+      items,
     };
-  }
-
-  static listenUserOrders(
-    uid: string,
-    optsOrCb: ListenOpts | ((orders: SnackOrder[]) => void),
-    maybeCb?: (orders: SnackOrder[]) => void
-  ): Unsubscribe {
-    if (typeof optsOrCb === "function") {
-      return OrderService.subscribeUserOrders(uid, optsOrCb);
-    }
-    // (opts ainda não usados; mantido por compatibilidade)
-    if (maybeCb) {
-      return OrderService.subscribeUserOrders(uid, maybeCb);
-    }
-    // Fallback no-op se alguém esquecer o callback
-    return () => {};
-  }
+    list.push(order);
+    return false;
+  });
+  list.sort((a, b) => b.createdAt - a.createdAt);
+  return list;
 }
 
-export function listenUserOrders(
-  uid: string,
-  optsOrCb: ListenOpts | ((orders: SnackOrder[]) => void),
-  maybeCb?: (orders: SnackOrder[]) => void
-): Unsubscribe {
-  if (typeof optsOrCb === "function") {
-    return OrderService.listenUserOrders(uid, optsOrCb);
+export class OrderService {
+  /** Nova API recomendada: assina /orders_by_user/{uid} */
+  static subscribeUserOrders(
+    uid: string,
+    cb: (orders: SnackOrder[]) => void,
+    limit = 20
+  ): () => void {
+    const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 20;
+    const db = getDatabase();
+    const q = query(
+      ref(db, `orders_by_user/${uid}`),
+      orderByChild("createdAt"),
+      limitToLast(safeLimit)
+    );
+    return onValue(q, (snap) => cb(snapshotToOrders(snap)));
   }
-  return OrderService.listenUserOrders(uid, optsOrCb, maybeCb);
+
+  /**
+   * Compat: aceita
+   *  - listenUserOrders(uid, (list) => void)
+   *  - listenUserOrders(uid, 10, (list) => void)
+   *  - listenUserOrders(uid, { limit: 10 }, (list) => void)
+   */
+  static listenUserOrders(
+    uid: string,
+    optionsOrLimit?:
+      | number
+      | { limit?: number }
+      | ((orders: SnackOrder[]) => void),
+    cbMaybe?: (orders: SnackOrder[]) => void
+  ): () => void {
+    let limit = 20;
+    let cb: (orders: SnackOrder[]) => void = () => {};
+
+    if (typeof optionsOrLimit === "function") {
+      cb = optionsOrLimit;
+    } else if (typeof optionsOrLimit === "number") {
+      limit = optionsOrLimit;
+      if (typeof cbMaybe === "function") cb = cbMaybe;
+    } else if (optionsOrLimit && typeof optionsOrLimit === "object") {
+      if (typeof optionsOrLimit.limit === "number") limit = optionsOrLimit.limit;
+      if (typeof cbMaybe === "function") cb = cbMaybe;
+    } else if (typeof cbMaybe === "function") {
+      cb = cbMaybe;
+    }
+
+    return OrderService.subscribeUserOrders(uid, cb, limit);
+  }
+
+  /** Cria pedido via Cloud Function `createOrder`; fallback: grava no RTDB mantendo UX */
+  static async createOrder(payload: CreateOrderPayload): Promise<CreateOrderResult> {
+    const auth = getAuth();
+    const user = auth.currentUser;
+    const ensuredUid = payload.uid ?? user?.uid ?? "";
+
+    if (!ensuredUid) {
+      throw new Error("Usuário não autenticado.");
+    }
+
+    // 1) Tenta a callable se existir
+    try {
+      const fn = httpsCallable<CreateOrderPayload, CreateOrderResult>(
+        getFunctions(undefined, REGION),
+        "createOrder"
+      );
+      const { data } = await fn({ ...payload, uid: ensuredUid });
+      if (data && typeof data.orderId === "string") {
+        return data;
+      }
+    } catch {
+      // segue para fallback
+    }
+
+    // 2) Fallback: grava estrutura mínima diretamente no RTDB
+    const db = getDatabase();
+    const orderRef = push(ref(db, "orders"));
+    const orderId = String(orderRef.key ?? "");
+    if (!orderId) throw new Error("Falha ao gerar ID do pedido.");
+
+    const createdAt = Date.now();
+    const status: OrderStatus = payload.status ?? "pedido realizado";
+    const storeId = String(payload.storeId ?? "");
+
+    const safeItems: SnackOrderItem[] = Array.isArray(payload.items)
+      ? payload.items.map(normalizeItem)
+      : [];
+
+    const orderData = {
+      key: orderId,
+      uid: ensuredUid,
+      storeId,
+      status,
+      createdAt,
+      items: safeItems,
+    };
+
+    // Escreve em /orders e em /orders_by_user/{uid}/{orderId} (conforme regras)
+    await set(ref(db, `orders/${orderId}`), orderData);
+    await set(ref(db, `orders_by_user/${ensuredUid}/${orderId}`), orderData);
+
+    return { orderId };
+  }
+
+  /** Alias para compatibilidade com chamadas antigas */
+  static async create(payload: CreateOrderPayload): Promise<CreateOrderResult> {
+    return this.createOrder(payload);
+  }
 }

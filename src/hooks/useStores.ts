@@ -1,8 +1,3 @@
-"use client";
-
-import { useCallback, useEffect, useRef, useState } from "react";
-import { StoreService, type GetFoodStoresResult } from "@/services/store.service";
-
 /** Item de combo/pacote oferecido por uma loja (como o app consome) */
 export interface ComboItem {
   id: string;
@@ -11,6 +6,11 @@ export interface ComboItem {
   itens?: Array<{ nome: string; qtd: number }>;
   imagemUrl?: string;
 }
+
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { StoreService, type GetFoodStoresResult } from "@/services/store.service";
 
 /** Loja de alimentação (fonte de verdade para o app) */
 export interface FoodStore {
@@ -57,6 +57,24 @@ function isCFResult(p: unknown): p is GetFoodStoresResult {
   return !!p && typeof p === "object" && Array.isArray((p as { food_stores?: unknown }).food_stores);
 }
 
+/** utilitário: pega array de uma propriedade sem usar `any` */
+function getArrayProp(obj: unknown, key: string): unknown[] {
+  if (!obj || typeof obj !== "object") return [];
+  const v = (obj as Record<string, unknown>)[key];
+  return Array.isArray(v) ? v : [];
+}
+
+/** utilitário: pega string de uma propriedade sem usar `any` */
+function getStringProp(obj: unknown, ...keys: string[]): string | undefined {
+  if (!obj || typeof obj !== "object") return undefined;
+  const rec = obj as Record<string, unknown>;
+  for (const k of keys) {
+    const v = rec[k];
+    if (typeof v === "string") return v;
+  }
+  return undefined;
+}
+
 /** Gera um id estável quando o backend não manda id */
 function makeIdFromName(name: string, idx: number): string {
   const slug = name
@@ -74,16 +92,40 @@ function normalizeFromCF(cf: GetFoodStoresResult): FoodStore[] {
     const id = raw.id ?? makeIdFromName(raw.name, idx);
     const nome = raw.name || "Loja";
     const categoria = raw.category || undefined;
-    const localizacao = raw.location || undefined;
+
+    // 'location' pode não existir no tipo; tenta alternativas conhecidas
+    const localizacao =
+      getStringProp(raw as unknown, "location") ??
+      getStringProp(raw as unknown, "endereco") ??
+      getStringProp(raw as unknown, "address");
+
     const telefone = raw.contact?.phone || undefined;
     const website = raw.contact?.website || undefined;
 
-    const pacotes: ComboItem[] = (raw.bundles ?? []).map((b, i) => ({
-      id: b.id ?? `${id}::b${i}`,
-      nome: b.name || "Combo",
-      preco: Number(b.price) || 0,
-      imagemUrl: b.image,
-    }));
+    // Combos podem vir como 'bundles' (novo) ou 'packages'/'pacotes'/'combos' em payloads antigos
+    const srcCandidates: unknown[][] = [
+      getArrayProp(raw as unknown, "bundles"),
+      getArrayProp(raw as unknown, "packages"),
+      getArrayProp(raw as unknown, "pacotes"),
+      getArrayProp(raw as unknown, "combos"),
+    ];
+    const src =
+      srcCandidates.find((arr) => arr.length > 0) ?? [];
+
+    const pacotes: ComboItem[] = src.map((b, i) => {
+      const rec = (b ?? {}) as UnknownRecord;
+      return {
+        id: toStringOr(rec["id"], `${id}::b${i}`),
+        nome: toStringOr(rec["name"] ?? rec["nome"], "Combo"),
+        preco: toNumberOr(rec["price"] ?? rec["preco"], 0),
+        imagemUrl:
+          typeof rec["image"] === "string"
+            ? (rec["image"] as string)
+            : typeof rec["imagemUrl"] === "string"
+            ? (rec["imagemUrl"] as string)
+            : undefined,
+      };
+    });
 
     return {
       id,
@@ -143,6 +185,7 @@ function normalizeLegacy(payload: unknown): FoodStore[] {
       (Array.isArray(r["pacotes"]) && (r["pacotes"] as UnknownRecord[])) ||
       (Array.isArray(r["packages"]) && (r["packages"] as UnknownRecord[])) ||
       (Array.isArray(r["bundles"]) && (r["bundles"] as UnknownRecord[])) ||
+      (Array.isArray(r["combos"]) && (r["combos"] as UnknownRecord[])) ||
       [];
 
     const pacotes: ComboItem[] = src.map((b, i) => ({
@@ -186,8 +229,7 @@ export function useStores(): UseStoresReturn {
       setLoading(true);
       setError(null);
 
-      // Retorno tipado (GetFoodStoresResult)
-      // ⬇️ Ajuste: getStores() sem argumentos (compatível com sua service atual)
+      // getStores() sem argumentos (compatível com sua service atual)
       const raw = await StoreService.getStores();
 
       setStores(normalizeStores(raw));

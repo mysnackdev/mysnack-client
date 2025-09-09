@@ -56,14 +56,19 @@ function normalizeItems(items: Array<Partial<SnackOrderItem>>): SnackOrderItem[]
     const qty = Number(it?.qty ?? 1);
     const price = Number(it?.price ?? 0);
     const id = String(it?.id ?? `${name}-${idx}`);
-    const subtotal = Number(it?.subtotal ?? qty * price);
+    const subtotal = Number(
+      typeof it?.subtotal === "number" ? it.subtotal : qty * price
+    );
     return { id, name, qty, price, subtotal };
   });
 }
 
-/** Soma o total de itens */
+/** Soma o total de itens (qty pode ser opcional) */
 function calcTotal(items: SnackOrderItem[]): number {
-  return items.reduce((acc, it) => acc + Number(it.subtotal || it.price * it.qty), 0);
+  return items.reduce(
+    (acc, it) => acc + Number(it.subtotal ?? it.price * (it.qty ?? 1)),
+    0
+  );
 }
 
 export function useOrder(): UseOrderApi {
