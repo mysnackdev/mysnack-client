@@ -1,3 +1,5 @@
+"use client";
+
 /** Item de combo/pacote oferecido por uma loja (como o app consome) */
 export interface ComboItem {
   id: string;
@@ -6,8 +8,6 @@ export interface ComboItem {
   itens?: Array<{ nome: string; qtd: number }>;
   imagemUrl?: string;
 }
-
-"use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { StoreService, type GetFoodStoresResult } from "@/services/store.service";

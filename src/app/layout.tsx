@@ -14,7 +14,8 @@ import BottomNav from "@/components/BottomNav";
 import HeaderBar from "@/components/HeaderBar";
 import CartManager from "@/components/CartManager";
 
-import { AuthProvider } from "@/hooks/useAuth";
+import { Suspense } from "react";
+import Providers from "./providers";
 
 export const metadata: Metadata = {
   title: "MySnack",
@@ -27,13 +28,13 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body className={`${nunitoSans.variable} antialiased pb-24`}>
-        <AuthProvider>
+        <Providers>
           <HeaderBar />
-          <main className="max-w-screen-xl mx-auto px-4">{children}</main>
+          <main className="max-w-screen-xl mx-auto px-4"><Suspense fallback={<div className="py-8 text-sm text-zinc-500">Carregando…</div>}>{children}</Suspense></main>
           <BottomNav />
           {/* Cart Drawer Manager */}
           <CartManager />
-        </AuthProvider>
+        </Providers>
       </body>
     </html>
   );
