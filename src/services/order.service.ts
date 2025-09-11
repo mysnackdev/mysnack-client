@@ -42,7 +42,7 @@ export type SnackOrder = {
   status: OrderStatus;
   createdAt: number;
   items: SnackOrderItem[];
-  /** opcional: metadados mostrados no UI */
+  /** metadados opcionais apenas para exibição */
   storeName?: string;
   storeLogoUrl?: string;
 };

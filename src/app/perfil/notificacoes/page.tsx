@@ -1,14 +1,19 @@
 "use client";
-import React from "react";
+import React, { useEffect } from "react";
+import { useNotificationsRTDB } from "@/hooks/useNotificationsRTDB";
 import Link from "next/link";
 
 import { useAuth } from "@/hooks";
 import { useNotifications } from "@/hooks";
 import { SkeletonList } from "@/components/skeletons";
 
-function Main(){
+function Main() {
   const { user } = useAuth();
   const { items, loading } = useNotifications();
+
+  // Zera badge/contagem ao entrar na tela de notificações
+  const { markAllAsRead } = useNotificationsRTDB();
+  useEffect(() => { markAllAsRead(); }, [markAllAsRead]);
 
   if (!user) {
     return (
@@ -43,7 +48,10 @@ function Main(){
             <div key={n.id} className="py-3">
               <p className="font-semibold">{n.title}</p>
               <p className="muted text-sm">{n.body || "—"}</p>
-              <p className="muted text-xs mt-1">{new Date(n.createdAt).toLocaleString()}</p>
+              {/* usa apenas createdAt; 'ts' não existe em NotificationItem */}
+              <p className="muted text-xs mt-1">
+                {new Date(n.createdAt).toLocaleString()}
+              </p>
             </div>
           ))}
         </div>
@@ -54,4 +62,6 @@ function Main(){
   );
 }
 
-export default function Page(){return <Main/>}
+export default function Page() {
+  return <Main />;
+}

@@ -6,13 +6,27 @@ import { useNotificationsRTDB } from "@/hooks/useNotificationsRTDB";
 function formatTime(ts: number) {
   try {
     return new Date(ts).toLocaleString("pt-BR", {
-      hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit"
+      hour: "2-digit",
+      minute: "2-digit",
+      day: "2-digit",
+      month: "2-digit",
     });
-  } catch { return ""; }
+  } catch {
+    return "";
+  }
 }
 
 export default function NotificationsBellRTDB() {
-  const { items, unreadCount, enabled, activate, markRead, mute, unmute, clear } = useNotificationsRTDB();
+  const {
+    items,
+    unreadCount,
+    enabled,
+    activate,
+    markRead,
+    mute,
+    unmute,
+    clear,
+  } = useNotificationsRTDB();
   const [open, setOpen] = useState(false);
 
   return (
@@ -20,12 +34,15 @@ export default function NotificationsBellRTDB() {
       <button
         aria-label="Notificações"
         className="relative rounded-full p-2 hover:bg-black/5"
-        onClick={() => setOpen(v => !v)}
+        onClick={() => setOpen((v) => !v)}
       >
         <span className="inline-block">🔔</span>
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 text-xs px-1.5 py-0.5 rounded-full bg-red-600 text-white">
-            {unreadCount > 99 ? "99+" : unreadCount}
+          <span
+            className="absolute -top-1 -right-1 text-xs px-1.5 py-0.5 rounded-full bg-red-600 text-white whitespace-nowrap"
+            aria-label={`${unreadCount} notificações não lidas`}
+          >
+            {unreadCount}
           </span>
         )}
       </button>
@@ -53,57 +70,73 @@ export default function NotificationsBellRTDB() {
               )}
             </div>
           </div>
+
           <ul className="max-h-[420px] overflow-auto divide-y divide-black/5">
             {items.length === 0 ? (
               <li className="p-3 text-sm text-black/60">Nenhuma notificação.</li>
             ) : (
-              items.map(n => (
-                <li key={n.id} className="p-3 text-sm">
-                  <div className="flex items-start gap-2">
-                    <div className="mt-0.5">{n.read ? "🟢" : "🔔"}</div>
-                    <div className="flex-1">
-                      <div className="font-medium">{n.title}</div>
-                      <div className="text-black/80">{n.body}</div>
-                      <div className="text-[11px] text-black/50 mt-1">{formatTime(n.ts)}</div>
-                      <div className="flex items-center gap-3 mt-1">
-                        {!n.read && (
-                          <button
-                            className="text-[12px] text-blue-700 hover:underline"
-                            onClick={() => markRead(n.id)}
-                          >
-                            Marcar como lida
-                          </button>
+              items.map((n) => {
+                const orderId = n.data?.orderId; // string | undefined
+                const created = n.createdAt ?? n.ts ?? 0; // sempre number p/ formatTime
+
+                return (
+                  <li key={n.id} className="p-3 text-sm">
+                    <div className="flex items-start gap-2">
+                      <div className="mt-0.5" aria-hidden>
+                        {n.read ? "🟢" : "🔔"}
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-medium">{n.title}</div>
+                        {n.body && (
+                          <div className="text-black/80">{n.body}</div>
                         )}
-                        {n.data?.orderId && (
-                          <Link
-                            href={`/orders?o=${encodeURIComponent(n.data.orderId)}`}
-                            className="text-[12px] text-blue-700 hover:underline"
-                            onClick={() => setOpen(false)}
-                          >
-                            Ver pedido #{n.data.orderId}
-                          </Link>
-                        )}
-                        {n.data?.orderId && !n.muted && (
-                          <button
-                            className="text-[12px] text-amber-700 hover:underline"
-                            onClick={() => mute(n.data!.orderId!)}
-                          >
-                            Silenciar este pedido
-                          </button>
-                        )}
-                        {n.data?.orderId && n.muted && (
-                          <button
-                            className="text-[12px] text-green-700 hover:underline"
-                            onClick={() => unmute(n.data!.orderId!)}
-                          >
-                            Reativar este pedido
-                          </button>
-                        )}
+                        <div className="text-[11px] text-black/50 mt-1">
+                          {formatTime(created)}
+                        </div>
+
+                        <div className="mt-1 flex flex-wrap items-center gap-3">
+                          {!n.read && (
+                            <button
+                              className="text-[12px] text-blue-700 hover:underline"
+                              onClick={() => markRead(n.id)}
+                            >
+                              Marcar como lida
+                            </button>
+                          )}
+
+                          {orderId && (
+                            <Link
+                              href={`/orders?o=${encodeURIComponent(orderId)}`}
+                              className="text-[12px] text-blue-700 hover:underline"
+                              onClick={() => setOpen(false)}
+                            >
+                              Ver pedido #{orderId}
+                            </Link>
+                          )}
+
+                          {orderId && !n.muted && (
+                            <button
+                              className="text-[12px] text-amber-700 hover:underline"
+                              onClick={() => mute(orderId)}
+                            >
+                              Silenciar este pedido
+                            </button>
+                          )}
+
+                          {orderId && n.muted && (
+                            <button
+                              className="text-[12px] text-green-700 hover:underline"
+                              onClick={() => unmute(orderId)}
+                            >
+                              Reativar este pedido
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </li>
-              ))
+                  </li>
+                );
+              })
             )}
           </ul>
         </div>

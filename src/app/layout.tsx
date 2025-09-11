@@ -13,6 +13,7 @@ const nunitoSans = Nunito_Sans({
 import BottomNav from "@/components/BottomNav";
 import HeaderBar from "@/components/HeaderBar";
 import CartManager from "@/components/CartManager";
+import OrderStatusNotifier from "@/components/OrderStatusNotifier";
 
 import { Suspense } from "react";
 import Providers from "./providers";
@@ -30,6 +31,7 @@ export default function RootLayout({
       <body className={`${nunitoSans.variable} antialiased pb-24`}>
         <Providers>
           <HeaderBar />
+          <OrderStatusNotifier />
           <main className="max-w-screen-xl mx-auto px-4"><Suspense fallback={<div className="py-8 text-sm text-zinc-500">Carregando…</div>}>{children}</Suspense></main>
           <BottomNav />
           {/* Cart Drawer Manager */}

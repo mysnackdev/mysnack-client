@@ -1,48 +1,31 @@
 "use client";
-
 import { db, auth, messagingPromise } from "@/firebase";
-import { getToken, onMessage } from "firebase/messaging";
-import {
-  ref,
-  update,
-  onValue,
-  query,
-  orderByChild,
-  limitToLast,
-  set,
-  remove,
-  push,
-} from "firebase/database";
+import { getToken, onMessage, type Messaging } from "firebase/messaging";
+import { ref, update, onValue, query, orderByChild, limitToLast, set, remove, push } from "firebase/database";
 
-const VAPID = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY || "";
+export type RTDBNotification = {
+  id: string;
+  title: string;
+  body: string;
+  createdAt: number;
+  ts?: number;
+  data?: Record<string, string>;
+  read?: boolean;
+  muted?: boolean;
+}
 
 export async function ensurePushPermissionAndToken(): Promise<string | null> {
-  if (typeof window === "undefined") return null; // SSR guard
+  if (typeof window === "undefined") return null;
   if (!("Notification" in window)) return null;
-
   try {
-    // registra o SW (ignora erro silenciosamente)
     if ("serviceWorker" in navigator) {
-      try {
-        await navigator.serviceWorker.register("/firebase-messaging-sw.js");
-      } catch {
-        /* noop */
-      }
+      try { await navigator.serviceWorker.register("/firebase-messaging-sw.js"); } catch {}
     }
-
-    const messaging = await messagingPromise;
-    if (!messaging) return null;
-
+    const messaging: Messaging | null = await messagingPromise;
     const perm = await Notification.requestPermission();
-    if (perm !== "granted") return null;
+    if (perm !== "granted" || !messaging) return null; // ← garante Messaging
 
-    const swReg = await navigator.serviceWorker.getRegistration().catch(() => undefined);
-
-    const token = await getToken(messaging, {
-      vapidKey: VAPID,
-      serviceWorkerRegistration: swReg,
-    });
-
+    const token = await getToken(messaging, { vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY });
     const user = auth.currentUser;
     if (user && token) {
       await update(ref(db), { [`userTokens/${user.uid}/${token}`]: true });
@@ -53,24 +36,13 @@ export async function ensurePushPermissionAndToken(): Promise<string | null> {
   }
 }
 
-export type RTDBNotification = {
-  id: string;
-  title: string;
-  body: string;
-  ts: number;
-  data?: Record<string, string>;
-  read?: boolean;
-  muted?: boolean;
-};
-
-export function subscribeNotifications(
-  uid: string,
-  cb: (list: RTDBNotification[]) => void,
-) {
-  const q = query(ref(db, `notifications/${uid}`), orderByChild("ts"), limitToLast(30));
-  return onValue(q, (snap) => {
+export function subscribeNotifications(uid: string, cb: (list: RTDBNotification[]) => void) {
+  const q = query(ref(db, `notifications/${uid}`), orderByChild("createdAt"), limitToLast(30));
+  return onValue(q, snap => {
     const val = (snap.val() as Record<string, RTDBNotification>) || {};
-    const arr = Object.values(val).sort((a, b) => (b.ts || 0) - (a.ts || 0));
+    const arr = Object.values(val).sort(
+      (a, b) => (b.createdAt || b.ts || 0) - (a.createdAt || a.ts || 0)
+    );
     cb(arr);
   });
 }
@@ -86,28 +58,27 @@ export async function clearAll(uid: string) {
 export async function muteOrder(uid: string, orderId: string) {
   await set(ref(db, `notificationPrefs/${uid}/mutedOrders/${orderId}`), true);
 }
-
 export async function unmuteOrder(uid: string, orderId: string) {
   await remove(ref(db, `notificationPrefs/${uid}/mutedOrders/${orderId}`));
 }
 
+// Grava pushs recebidos em foreground dentro do RTDB para aparecer no sino
 export async function bindForegroundPushToRTDB() {
-  if (typeof window === "undefined") return; // SSR guard
-  const messaging = await messagingPromise;
-  if (!messaging) return;
+  if (typeof window === "undefined") return;
+  const messaging: Messaging | null = await messagingPromise;
+  if (!messaging) return; // ← evita passar null
 
   onMessage(messaging, async (payload) => {
     const user = auth.currentUser;
     if (!user) return;
-
     const nRef = ref(db, `notifications/${user.uid}`);
     const newRef = push(nRef);
     await set(newRef, {
       id: newRef.key,
       title: payload.notification?.title || "Notificação",
       body: payload.notification?.body || "",
-      ts: Date.now(),
-      data: payload.data || {},
+      createdAt: Date.now(),
+      data: (payload.data || {}) as Record<string, string>,
       read: false,
     });
   });

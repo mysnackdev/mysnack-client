@@ -86,6 +86,7 @@ export default function OrdersPage() {
     }, 30);
 
     return () => { unsubRef.current?.(); unsubRef.current = null; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, uid]);
 
   // Primeira página de histórico (paginado) — apenas uma vez por sessão/autenticação
