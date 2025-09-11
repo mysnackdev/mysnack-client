@@ -92,7 +92,7 @@ export default function CheapDealsSection() {
             return (
               <Link
                 key={`${storeId}-${it.id}`}
-                href={`/produto?id=${encodeURIComponent(it.id)}&loja=${encodeURIComponent(storeId)}`}
+                href={`/produto#${encodeURIComponent(storeId)}/${encodeURIComponent(it.id)}`}
                 className="min-w-[180px] max-w-[180px]"
               >
                 <div className="w-[120px] h-[120px] mx-auto rounded-full ring-4 ring-orange-300 overflow-hidden">

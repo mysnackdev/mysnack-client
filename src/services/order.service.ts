@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import {
@@ -10,6 +11,8 @@ import {
   DataSnapshot,
   push,
   set,
+  child,
+  get,
 } from "firebase/database";
 import { getAuth } from "firebase/auth";
 import { getFunctions, httpsCallable } from "firebase/functions";
@@ -39,6 +42,9 @@ export type SnackOrder = {
   status: OrderStatus;
   createdAt: number;
   items: SnackOrderItem[];
+  /** opcional: metadados mostrados no UI */
+  storeName?: string;
+  storeLogoUrl?: string;
 };
 
 type CreateOrderPayload = {
@@ -55,7 +61,8 @@ type CreateOrderPayload = {
 
 type CreateOrderResult = { orderId: string };
 
-const REGION = process.env.NEXT_PUBLIC_FIREBASE_FUNCTIONS_REGION || "us-central1";
+const REGION =
+  process.env.NEXT_PUBLIC_FIREBASE_FUNCTIONS_REGION || "us-central1";
 
 /** utilitário: converte item para formato seguro (sem any) */
 function normalizeItem(it: SnackOrderItem): SnackOrderItem {
@@ -81,11 +88,14 @@ function snapshotToOrders(snap: DataSnapshot): SnackOrder[] {
       items?: unknown;
       key?: string;
     };
-    const rawItems = Array.isArray(v.items)
-      ? (v.items as unknown[])
-      : typeof v.items === "object" && v.items !== null
-      ? Object.values(v.items as Record<string, unknown>)
-      : [];
+
+    const rawItems =
+      Array.isArray(v.items)
+        ? (v.items as unknown[])
+        : typeof v.items === "object" && v.items !== null
+        ? Object.values(v.items as Record<string, unknown>)
+        : [];
+
     const items: SnackOrderItem[] = rawItems
       .map((x) => x as Partial<SnackOrderItem>)
       .filter(Boolean)
@@ -98,7 +108,8 @@ function snapshotToOrders(snap: DataSnapshot): SnackOrder[] {
           subtotal:
             typeof x?.subtotal === "number"
               ? x?.subtotal
-              : Number(x?.price ?? 0) * (typeof x?.qty === "number" ? x?.qty : 1),
+              : Number(x?.price ?? 0) *
+                (typeof x?.qty === "number" ? x?.qty : 1),
         })
       );
 
@@ -118,13 +129,95 @@ function snapshotToOrders(snap: DataSnapshot): SnackOrder[] {
 }
 
 export class OrderService {
+  /** Busca um pedido por ID (CF getOrderById com fallback RTDB) */
+  static async getById(orderId: string): Promise<SnackOrder | null> {
+    if (!orderId) return null;
+
+    // 1) tenta callable
+    try {
+      const fn = httpsCallable(
+        getFunctions(undefined, REGION),
+        "getOrderById"
+      );
+      const res: any = await fn({ orderId });
+      const d: any = res?.data || null;
+
+      if (d && d.orderId) {
+        const itemsRaw = Array.isArray(d.items) ? d.items : [];
+        const items: SnackOrderItem[] = itemsRaw.map(
+          (x: any, idx: number) =>
+            normalizeItem({
+              id: String(x?.id ?? `item-${idx}`),
+              name: String(x?.name ?? "Item"),
+              price: Number(x?.price ?? 0),
+              qty: Number(x?.qty ?? 1),
+              subtotal:
+                typeof x?.subtotal === "number"
+                  ? x.subtotal
+                  : Number(x?.price ?? 0) * Number(x?.qty ?? 1),
+            })
+        );
+
+        return {
+          key: String(d.orderId),
+          uid: String(d.uid || ""),
+          storeId: String(d.storeId || ""),
+          status: String(d.status || "pedido realizado") as OrderStatus,
+          createdAt: Number(d.createdAt || Date.now()),
+          items,
+        };
+      }
+    } catch {
+      // segue para fallback
+    }
+
+    // 2) fallback direto no RTDB
+    try {
+      const db = getDatabase();
+      const snap = await get(child(ref(db), `orders/${orderId}`));
+      if (!snap.exists()) return null;
+
+      const v: any = snap.val() || {};
+      const raw =
+        Array.isArray(v.items)
+          ? v.items
+          : v.items && typeof v.items === "object"
+          ? Object.values(v.items)
+          : [];
+      const items: SnackOrderItem[] = raw.map((x: any, idx: number) =>
+        normalizeItem({
+          id: String(x?.id ?? `item-${idx}`),
+          name: String(x?.name ?? "Item"),
+          price: Number(x?.price ?? 0),
+          qty: Number(x?.qty ?? 1),
+          subtotal:
+            typeof x?.subtotal === "number"
+              ? x.subtotal
+              : Number(x?.price ?? 0) * Number(x?.qty ?? 1),
+        })
+      );
+
+      return {
+        key: String(orderId),
+        uid: String(v?.uid ?? ""),
+        storeId: String(v?.storeId ?? ""),
+        status: String(v?.status ?? "pedido realizado") as OrderStatus,
+        createdAt: Number(v?.createdAt ?? Date.now()),
+        items,
+      };
+    } catch {
+      return null;
+    }
+  }
+
   /** Nova API recomendada: assina /orders_by_user/{uid} */
   static subscribeUserOrders(
     uid: string,
     cb: (orders: SnackOrder[]) => void,
     limit = 20
   ): () => void {
-    const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 20;
+    const safeLimit =
+      Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 20;
     const db = getDatabase();
     const q = query(
       ref(db, `orders_by_user/${uid}`),
@@ -157,7 +250,8 @@ export class OrderService {
       limit = optionsOrLimit;
       if (typeof cbMaybe === "function") cb = cbMaybe;
     } else if (optionsOrLimit && typeof optionsOrLimit === "object") {
-      if (typeof optionsOrLimit.limit === "number") limit = optionsOrLimit.limit;
+      if (typeof optionsOrLimit.limit === "number")
+        limit = optionsOrLimit.limit;
       if (typeof cbMaybe === "function") cb = cbMaybe;
     } else if (typeof cbMaybe === "function") {
       cb = cbMaybe;
@@ -167,7 +261,9 @@ export class OrderService {
   }
 
   /** Cria pedido via Cloud Function `createOrder`; fallback: grava no RTDB mantendo UX */
-  static async createOrder(payload: CreateOrderPayload): Promise<CreateOrderResult> {
+  static async createOrder(
+    payload: CreateOrderPayload
+  ): Promise<CreateOrderResult> {
     const auth = getAuth();
     const user = auth.currentUser;
     const ensuredUid = payload.uid ?? user?.uid ?? "";
@@ -221,7 +317,75 @@ export class OrderService {
   }
 
   /** Alias para compatibilidade com chamadas antigas */
-  static async create(payload: CreateOrderPayload): Promise<CreateOrderResult> {
+  static async create(
+    payload: CreateOrderPayload
+  ): Promise<CreateOrderResult> {
     return this.createOrder(payload);
+  }
+
+  /** Lista pedidos paginados do usuário autenticado via callable getUserOrders */
+  static async getUserOrdersPaged(opts?: {
+    limit?: number;
+    cursorCreatedAt?: number;
+    status?: OrderStatus;
+  }): Promise<{
+    orders: SnackOrder[];
+    nextCursorCreatedAt: number | null;
+  }> {
+    const limit =
+      opts?.limit && Number.isFinite(opts.limit)
+        ? Math.min(50, Math.max(1, Number(opts.limit)))
+        : 20;
+
+    const fn = httpsCallable(
+      getFunctions(undefined, REGION),
+      "getUserOrders"
+    );
+    const res: any = await fn({
+      limit,
+      cursorCreatedAt: opts?.cursorCreatedAt,
+      status: opts?.status,
+    });
+
+    const arr: any[] = Array.isArray(res?.data?.orders)
+      ? res.data.orders
+      : [];
+
+    const orders: SnackOrder[] = arr.map((o: any) => {
+      const raw =
+        Array.isArray(o.items)
+          ? o.items
+          : o.items && typeof o.items === "object"
+          ? Object.values(o.items)
+          : [];
+      const items: SnackOrderItem[] = raw.map((x: any, i: number) =>
+        normalizeItem({
+          id: String(x?.id ?? `item-${i}`),
+          name: String(x?.name ?? "Item"),
+          price: Number(x?.price ?? 0),
+          qty: Number(x?.qty ?? 1),
+          subtotal:
+            typeof x?.subtotal === "number"
+              ? x.subtotal
+              : Number(x?.price ?? 0) * Number(x?.qty ?? 1),
+        })
+      );
+
+      return {
+        key: String(o.key),
+        uid: String(o.uid || ""),
+        storeId: String(o.storeId || ""),
+        status: String(o.status || "pedido realizado") as OrderStatus,
+        createdAt: Number(o.createdAt || Date.now()),
+        items,
+      };
+    });
+
+    const nextCursorCreatedAt =
+      typeof res?.data?.nextCursorCreatedAt === "number"
+        ? res.data.nextCursorCreatedAt
+        : null;
+
+    return { orders, nextCursorCreatedAt };
   }
 }

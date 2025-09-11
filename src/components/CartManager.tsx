@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { CartDrawer, type CartItem } from "@/components/cart-drawer";
 import { getAuth } from "firebase/auth";
 import { useRouter } from "next/navigation";
+import { OrderService } from "@/services/order.service";
 
 /** Gerencia o carrinho via localStorage e escuta o evento custom "open-cart". */
 export default function CartManager() {
@@ -42,10 +43,12 @@ export default function CartManager() {
 
     // Evento custom para abrir o carrinho
     const handleOpenCart = (_e: Event) => {
-      console.log('CartManager: open-cart event received', _e);
+      console.log("CartManager: open-cart event received", _e);
       setIsOpen(true);
     };
     window.addEventListener("open-cart", handleOpenCart);
+
+    // Evento para quando algum componente atualizar o carrinho
     const handleCartUpdated = () => {
       try {
         const raw = localStorage.getItem("mysnack_cart");
@@ -82,13 +85,13 @@ export default function CartManager() {
 
   const onClose = useCallback(() => setIsOpen(false), []);
 
-  // Exigido pelo CartDrawer: altera a quantidade (remove se qty <= 0)
+  // Altera a quantidade (remove se qty <= 0)
   const onChangeQty = useCallback(
     (id: string, qty: number) => {
       setItems((prev) => {
         const next = prev
           .map((it) => (it.id === id ? { ...it, qty } : it))
-          .filter((it) => it.qty > 0);
+          .filter((it) => (it.qty || 0) > 0);
         save(next);
         return next;
       });
@@ -96,7 +99,7 @@ export default function CartManager() {
     [save]
   );
 
-  // Finaliza o pedido (wrapper abaixo para casar com onCheckout: () => void)
+  // Finaliza o pedido
   const onCheckout = useCallback(async () => {
     if (checkingOut || items.length === 0) return;
     setCheckingOut(true);
@@ -104,22 +107,45 @@ export default function CartManager() {
       const user = auth.currentUser;
       if (!user) {
         console.warn("User not authenticated");
+        router.push("/login");
         return;
       }
-      // Se quiser criar o pedido aqui, chame seu OrderService.createOrder(...)
 
-      // Limpa o carrinho e redireciona
+      // Lê storeId do meta salvo pelo botão de adicionar
+      let storeId = "";
+      try {
+        const metaRaw = localStorage.getItem("mysnack_cart_meta");
+        const meta = metaRaw ? JSON.parse(metaRaw) : null;
+        storeId = String(meta?.storeId || "");
+      } catch {}
+
+      // Monta payload
+      const payloadItems = items.map((it) => ({
+        id: String(it.id),
+        name: String(it.name),
+        price: Number(it.price),
+        qty: Number(it.qty || 1),
+      }));
+
+      const { orderId } = await OrderService.createOrder({
+        storeId,
+        items: payloadItems,
+      });
+
+      // Limpa carrinho e abre página de pedidos
+      localStorage.removeItem("mysnack_cart");
+      localStorage.removeItem("mysnack_cart_meta");
+      window.dispatchEvent(new Event("cart-updated"));
       setItems([]);
-      save([]);
       setIsOpen(false);
-      router.push("/orders");
-    } catch (err) {
-      console.error(err);
+      router.push("/orders#" + orderId);
+    } catch (e) {
+      console.error("Checkout error", e);
       alert("Não foi possível finalizar seu pedido. Tente novamente.");
     } finally {
       setCheckingOut(false);
     }
-  }, [auth, items.length, router, save, checkingOut]);
+  }, [auth, checkingOut, items, router]);
 
   return (
     <CartDrawer

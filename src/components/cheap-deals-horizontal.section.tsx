@@ -63,7 +63,7 @@ export default function CheapDealsHorizontalSection({
             return (
               <li key={`${store.id}-${combo.id || combo.nome}`} className="snap-start w-[180px] sm:w-[190px] shrink-0">
                 <Link
-                  href={`/produto?id=${productId}`} // ✅ agora aponta para /produto/[id]
+                  href={`/produto#${encodeURIComponent(store.id)}/${productId}`}
                   className="block rounded-md pt-[2px] focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
                 >
                   {/* conteúdo centralizado */}
