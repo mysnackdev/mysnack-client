@@ -1,0 +1,1 @@
+// Minimal SW for Firebase Messaging (placeholder).\nself.addEventListener("push", () => {});\n
