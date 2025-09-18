@@ -1,13 +1,16 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 import React, { createContext, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "@/firebase";
+import { onValue, ref } from "firebase/database";
+import { auth, db } from "@/firebase";
 import {
   ensurePushPermissionAndToken,
   subscribeNotifications,
   markAsRead as rtdbMarkAsRead, clearAll,
   muteOrder, unmuteOrder,
   bindForegroundPushToRTDB,
+  markAllAsReadServer,
   type RTDBNotification
 } from "@/lib/notifications.rtdb";
 
@@ -25,43 +28,36 @@ type Ctx = {
 
 export const NotificationsContext = createContext<Ctx>({
   items: [], unreadCount: 0, enabled: false,
-  activate: async () => {}, markRead: async () => {}, markAllAsRead: async () => {},
-  mute: async () => {}, unmute: async () => {}, clear: async () => {},
+  activate: async () => {}, markRead: async () => {},
+  markAllAsRead: async () => {}, mute: async () => {}, unmute: async () => {}, clear: async () => {}
 });
 
 export function NotificationsProvider({ children }: { children: React.ReactNode }) {
+  const [uid, setUid] = useState<string | null>(null);
   const [items, setItems] = useState<RTDBNotification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [enabled, setEnabled] = useState(false);
-  const [uid, setUid] = useState<string | null>(auth.currentUser?.userId || null);
-  const subRef = useRef<null | (() => void)>(null);
+  const unsubRef = useRef<null | (() => void)>(null);
 
-  // track auth
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => setUid(u?.userId || null));
-    return () => unsub();
+    const off = onAuthStateChanged(auth, (u) => {
+      setUid(u?.uid ?? null);
+    });
+    return () => off();
   }, []);
 
-  // subscribe RTDB for this uid
+  // subscribe list
   useEffect(() => {
-    if (subRef.current) { subRef.current(); subRef.current = null; }
-    setItems([]);
-    if (!uid) return;
-    subRef.current = subscribeNotifications(uid, setItems);
-    return () => { if (subRef.current) { subRef.current(); subRef.current = null; } };
+    if (!uid) { setItems([]); setUnreadCount(0); if (unsubRef.current) { unsubRef.current(); unsubRef.current = null; } return; }
+    if (unsubRef.current) { unsubRef.current(); unsubRef.current = null; }
+    unsubRef.current = subscribeNotifications(uid, (list) => {
+      setItems(list);
+    });
+    // counter via RTDB
+    const r = ref(db, `/userCounters/${uid}/notificationsUnread`);
+    const offCounter = onValue(r, (snap) => setUnreadCount(Number(snap.val() || 0)));
+    return () => { if (unsubRef.current) unsubRef.current(); offCounter(); };
   }, [uid]);
-
-  // register push + foreground binding (once)
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const token = await ensurePushPermissionAndToken();
-      if (token && !cancelled) setEnabled(true);
-      await bindForegroundPushToRTDB();
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
-  const unreadCount = useMemo(() => items.filter(i => !i.read).length, [items]);
 
   const activate = useCallback(async () => {
     const token = await ensurePushPermissionAndToken();
@@ -70,24 +66,22 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
 
   const markRead = useCallback(async (id: string) => {
     if (!uid) return;
-    // otimista
-    setItems(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
     await rtdbMarkAsRead(uid, id);
   }, [uid]);
 
   const markAllAsRead = useCallback(async () => {
     if (!uid) return;
-    // otimista
+    await markAllAsReadServer();
     setItems(prev => prev.map(n => ({ ...n, read: true })));
-    // assíncrono
-    const pending = items.filter(n => !n.read);
-    await Promise.all(pending.map(n => rtdbMarkAsRead(uid, n.id)));
-  }, [uid, items]);
+  }, [uid]);
 
   const mute = useCallback(async (orderId: string) => { if (uid) await muteOrder(uid, orderId); }, [uid]);
   const unmute = useCallback(async (orderId: string) => { if (uid) await unmuteOrder(uid, orderId); }, [uid]);
   const clear = useCallback(async () => { if (uid) await clearAll(uid); }, [uid]);
 
-  const value: Ctx = { items, unreadCount, enabled, activate, markRead, markAllAsRead, mute, unmute, clear };
+  const value: Ctx = useMemo(() => ({
+    items, unreadCount, enabled, activate, markRead, markAllAsRead, mute, unmute, clear
+  }), [items, unreadCount, enabled, activate, markRead, markAllAsRead, mute, unmute, clear]);
+
   return <NotificationsContext.Provider value={value}>{children}</NotificationsContext.Provider>;
 }

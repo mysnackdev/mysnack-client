@@ -10,6 +10,7 @@ interface Props {
 
 export default function NotificationsModal({ open, onClose }: Props) {
   const { items, markRead, markAllAsRead } = useNotificationsRTDB();
+  useEffect(() => { if (open) { markAllAsRead(); } }, [open, markAllAsRead]);
   const router = useRouter();
 
   const sorted = useMemo(() => {

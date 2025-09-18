@@ -1,122 +1,124 @@
 
 "use client";
 import React from "react";
-import Link from "next/link";
-import { useAuth } from "@/hooks/useAuth";
-import { subscribeUserOrders, type MirrorOrder } from "@/services/orders.mirror.service";
-import ScanBanner from "@/components/scan-banner";
+import QrScannerDialog, { type QrResult } from "@/components/common/QrScannerDialog";
+import ScanTableBanner from "@/components/orders/ScanTableBanner";
 import OrderAgainList, { type OrderAgainItem } from "@/components/orders/OrderAgainList";
 import HistoryList, { type HistoryCard } from "@/components/orders/HistoryList";
+import CouponBanner from "@/components/orders/CouponBanner";
+import LoginNotice from "@/components/LoginNotice";
+import { useAuth } from "@/hooks/useAuth";
+import { subscribeUserOrders, type MirrorOrder } from "@/services/orders.mirror.service";
+import { useMall } from "@/context/MallContext";
 
-type TabKey = "all" | "progress" | "done";
+/** Converte status para etiquetas */
+const LABEL_BY_STATUS: Record<string, string> = {
+  "pedido concluído": "Pedido concluído",
+  "pedido entregue": "Pedido concluído",
+  "pedido cancelado": "Pedido cancelado",
+  "pedido realizado": "Pedido realizado",
+  "pedido confirmado": "Pedido confirmado",
+  "pedido sendo preparado": "Sendo preparado",
+  "pedido pronto": "Pedido pronto"
+};
 
-const DONE = new Set(["pedido entregue", "pedido cancelado"]);
-const PROGRESS = new Set([
-  "pedido realizado",
-  "pedido confirmado",
-  "pedido sendo preparado",
-  "pedido pronto",
-  "pedido indo até você",
-]);
+function formatDateLabel(ts: number): string {
+  const d = new Date(ts || Date.now());
+  const weekday = d.toLocaleDateString(undefined, { weekday: "short" });
+  const day = d.toLocaleDateString(undefined, { day: "2-digit" });
+  const month = d.toLocaleDateString(undefined, { month: "long" });
+  const year = d.getFullYear();
+  return `${weekday}. ${day} ${month} ${year}`;
+}
 
 export default function OrdersPage() {
-  const { user, loading } = useAuth();
+  const { user } = useAuth();
+  const isLogged = Boolean(user);
   const [orders, setOrders] = React.useState<MirrorOrder[]>([]);
-  const [tab, setTab] = React.useState<TabKey>("all");
+  const [openScan, setOpenScan] = React.useState(false);
+  const { setMallById } = useMall();
 
+  // Assina pedidos do usuário
   React.useEffect(() => {
-    if (!user?.uid) return;
-    return subscribeUserOrders(user.uid, (list) => setOrders(list.reverse()));
+    let done = false;
+    let unsub: (() => void) | undefined;
+    (async () => {
+      if (!user?.uid) return;
+      unsub = await subscribeUserOrders(user.uid, setOrders);
+      if (done && unsub) unsub();
+    })();
+    return () => { done = true; if (unsub) unsub(); };
   }, [user?.uid]);
-
-  const filtered = React.useMemo(() => {
-    if (tab === "all") return orders;
-    if (tab === "progress") return orders.filter(o => PROGRESS.has((o.status||"").toLowerCase()));
-    return orders.filter(o => DONE.has((o.status||"").toLowerCase()));
-  }, [orders, tab]);
 
   const againItems: OrderAgainItem[] = React.useMemo(() => {
     if (!orders.length) return [];
     const last = orders[0];
     return [{
       id: last.key,
-      storeName: "MySnack",
-      title: last.lastItem ?? "Pedido MySnack"
+      storeName: last.storeId || "MySnack",
+      title: last.lastItem || "Pedido recente",
+      price: last.total ?? null
     }];
   }, [orders]);
 
   const historyItems: HistoryCard[] = React.useMemo(() => {
-    return filtered.map((o) => ({
+    return orders.map(o => ({
       id: o.key,
-      dateLabel: new Date(o.createdAt || Date.now()).toLocaleDateString(undefined, { weekday: "short", day: "2-digit", month: "long", year: "numeric" }),
-      storeName: "Pedido MySnack",
-      status: o.status || "pedido realizado",
-      numberLabel: `Nº ${String(o.number ?? o.key).slice(-5)}`,
-      title: o.lastItem ?? "Pedido",
+      dateLabel: formatDateLabel(o.createdAt || Date.now()),
+      storeName: o.storeId || "MySnack",
+      statusLabel: `${LABEL_BY_STATUS[o.status] ?? o.status} • Nº ${o.number ?? "—"}`,
+      itemsSummary: o.lastItem ?? undefined,
+      price: o.total ?? null
     }));
-  }, [filtered]);
+  }, [orders]);
 
-  if (loading) return <div className="p-6">Carregando…</div>;
+  const hasOrders = historyItems.length > 0;
 
-  if (!user) {
-    return (
-      <div className="p-6 max-w-xl mx-auto">
-        <h1 className="text-2xl font-bold mb-3">MEUS PEDIDOS</h1>
-        <ScanBanner onScan={() => location.assign("/scan")} />
-        <div className="mt-6 rounded-2xl border p-4">
-          <p className="text-sm text-muted-foreground mb-3">
-            Faça login para visualizar seu histórico de pedidos.
-          </p>
-          <Link className="inline-block px-4 py-2 rounded-xl bg-black text-white" href="/login">Fazer login</Link>
-        </div>
-      </div>
-    );
-  }
+  const handleAddAgain = React.useCallback((item: OrderAgainItem) => {
+    // salva item simples no localStorage consumido pelo CartManager
+    try {
+      const raw = localStorage.getItem("mysnack_cart");
+      const arr: Array<{id:string; name:string; qty:number; price:number}> = raw ? JSON.parse(raw) : [];
+      arr.push({ id: `again-${item.id}`, name: item.title, qty: 1, price: Number(item.price ?? 0) });
+      localStorage.setItem("mysnack_cart", JSON.stringify(arr));
+      window.dispatchEvent(new Event("cart-updated"));
+      window.dispatchEvent(new Event("open-cart"));
+    } catch (e) {
+      console.warn("Falha ao adicionar à sacola", e);
+    }
+  }, []);
+
+  const onScan = React.useCallback((res: QrResult) => {
+    if (res.mallId) {
+      void setMallById(res.mallId);
+    }
+  }, [setMallById]);
 
   return (
     <main className="pb-24">
-      <div className="px-4 pt-6">
-        <h1 className="text-center tracking-wide font-extrabold text-zinc-800" style={{ letterSpacing: 1 }}>MEUS PEDIDOS</h1>
-      </div>
+      <header className="px-4 pt-4 pb-3">
+        <h1 className="text-center font-semibold tracking-wide text-zinc-700">MEUS PEDIDOS</h1>
+      </header>
 
-      <div className="px-4 mt-2">
-        <ScanBanner onScan={() => {}} />
-      </div>
+      <div className="h-2" />
+      {/* Aviso quando não logado */}
+      {!isLogged && <LoginNotice />}
+    
 
-      {/* Tabs */}
-      <div className="px-4 mt-4">
-        <div className="inline-flex rounded-2xl bg-zinc-100 p-1 text-sm font-medium">
-          <button
-            className={"px-3 py-2 rounded-xl " + (tab === "all" ? "bg-white shadow" : "text-zinc-600")}
-            onClick={() => setTab("all")}
-          >
-            Todos
-          </button>
-          <button
-            className={"px-3 py-2 rounded-xl " + (tab === "progress" ? "bg-white shadow" : "text-zinc-600")}
-            onClick={() => setTab("progress")}
-          >
-            Em andamento
-          </button>
-          <button
-            className={"px-3 py-2 rounded-xl " + (tab === "done" ? "bg-white shadow" : "text-zinc-600")}
-            onClick={() => setTab("done")}
-          >
-            Concluídos
-          </button>
-        </div>
-      </div>
+      <ScanTableBanner onClick={() => setOpenScan(true)} />
 
-      {/* Peça de novo */}
-      <OrderAgainList items={againItems} />
+      {isLogged && againItems.length > 0 && (<OrderAgainList items={againItems} onAdd={handleAddAgain} />)}
 
-      {/* Histórico */}
-      <section className="px-4 mt-6">
-        <h3 className="text-xl font-semibold mb-3">Histórico</h3>
-      </section>
-      <HistoryList items={historyItems} />
+      {isLogged && <CouponBanner />}
 
-      <div className="h-10" />
+      {isLogged && hasOrders && (<>
+        <section className="px-4 mt-6">
+          <h3 className="text-lg font-semibold mb-3">Histórico</h3>
+        </section>
+        <HistoryList items={historyItems} />
+      </>)}
+
+      <QrScannerDialog open={openScan} onClose={() => setOpenScan(false)} onScan={onScan} />
     </main>
   );
 }

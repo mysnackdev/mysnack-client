@@ -1,9 +1,13 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 import { useEffect, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import Image from "next/image";
 import { auth } from "@/firebase";
 import { OrderService, type SnackOrder } from "@/services/order.service";
+
+function formatBRL(v:number){return new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"}).format(v||0);} 
+function total(o:SnackOrder){try{return o.items.reduce((s:number,it: { price?: number|string; qty?: number|string })=>s+Number(it.price||0)*Number(it.qty||1),0)}catch{return 0}}
 
 export default function RecentOrdersRow() {
   const [orders, setOrders] = useState<SnackOrder[]>([]);
@@ -27,8 +31,8 @@ export default function RecentOrdersRow() {
   }, []);
 
   return (
-    <section className="px-4 mt-6">
-      <h2 className="text-lg font-semibold mb-3">Últimos Pedidos</h2>
+    <section className="px-4 mt-5">
+      <h2 className="text-xl font-semibold mb-3">Últimos pedidos</h2>
       {loading ? (
         <div className="text-sm text-zinc-500">Carregando…</div>
       ) : !orders.length ? (
@@ -42,7 +46,8 @@ export default function RecentOrdersRow() {
               </div>
               <div className="p-3 text-sm">
                 <div className="text-zinc-800 line-clamp-2">#{o.key.slice(-6)} • {o.items[0]?.name ?? "Pedido MySnack"}</div>
-                <div className="text-xs text-zinc-500 mt-1">{new Date(o.createdAt).toLocaleDateString()} • {o.status}</div>
+                <div className="text-[13px] text-green-600 font-semibold mt-1">{formatBRL(total(o))}</div>
+                <div className="text-xs text-zinc-500 mt-1">{new Date(o.createdAt).toLocaleDateString()} • <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-zinc-100 text-zinc-700 border border-zinc-200">{o.status}</span></div>
               </div>
             </div>
           ))}

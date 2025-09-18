@@ -14,7 +14,7 @@ export const StoreComboRaw = ({ combo }: { combo: FoodStoreCombo }) => {
       const auth = getAuth();
       const user = auth.currentUser;
       if (!user) { console.warn('User not authenticated'); return; }
-      const uid = user?.userId as string;
+      const uid = user?.uid as string;
       await OrderService.createOrder({
         uid,
         nome: user?.displayName || `Cliente ${uid.slice(-5)}`,

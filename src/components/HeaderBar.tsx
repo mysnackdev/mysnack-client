@@ -1,12 +1,15 @@
+
 "use client";
 
 import Link from "next/link";
 import Image from "next/image";
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useNotificationsRTDB } from "@/hooks/useNotificationsRTDB";
 import { ShoppingCart, Bell } from "lucide-react";
 import NotificationsModal from "@/components/NotificationsModal";
+import type { RTDBNotification } from "@/lib/notifications.rtdb";
 
+/** Props do Header. */
 export interface HeaderBarProps {
   title?: string;
   /** Substitui os botões à direita; quando omitido, mostra padrão (Parceiro, carrinho, sino) */
@@ -14,8 +17,16 @@ export interface HeaderBarProps {
 }
 
 export default function HeaderBar({ title, rightSlot }: HeaderBarProps) {
-  const { unreadCount, markAllAsRead } = useNotificationsRTDB();
+  // Pega as notificações e calcula o badge de modo defensivo
+  const { items = [], unreadCount = 0 } = useNotificationsRTDB() ?? {} as { items: RTDBNotification[]; unreadCount: number };
   const [openNotifications, setOpenNotifications] = useState(false);
+
+  const badge = useMemo(() => {
+    // se o provider expõe unreadCount confiável, usa; senão calcula localmente
+    const local = Array.isArray(items) ? items.filter((n) => !n?.read).length : 0;
+    const n = Number.isFinite(unreadCount) && unreadCount > 0 ? unreadCount : local;
+    return Math.min(99, n || 0);
+  }, [items, unreadCount]);
 
   const openCart = (): void => {
     try {
@@ -29,56 +40,48 @@ export default function HeaderBar({ title, rightSlot }: HeaderBarProps) {
     <header className="sticky top-0 z-30 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/60">
       <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 border-b px-4 py-3">
         <Link href="/" aria-label="Página inicial" className="flex items-center gap-3">
-          <Image
-            src="/logo.svg"
-            alt="MySnack"
-            width={256}
-            height={256}
-            priority
-            className="h-[clamp(32px,8vw,72px)] w-auto shrink-0"
-          />
-          <span className="font-semibold leading-none text-[clamp(16px,2.4vw,24px)]">
-            MySnack
-          </span>
+          <Image src="/logo.png" alt="MySnack" width={28} height={28} className="rounded-lg" />
+          <span className="font-semibold tracking-tight">MySnack</span>
         </Link>
 
-        {title ? <h1 className="text-base font-medium">{title}</h1> : <div />}
+        {title && <div className="text-sm text-zinc-500">{title}</div>}
 
-        {rightSlot ?? (
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              aria-label="Carrinho"
-              className="rounded-full p-2 hover:bg-black/5"
-              onClick={openCart}
-            >
-              <ShoppingCart className="h-5 w-5" />
-            </button>
-
-            <div className="relative">
-              <button
-                type="button"
-                aria-label="Notificações"
-                className="rounded-full p-2 hover:bg-black/5"
-                onClick={() => {
-                  markAllAsRead();      // zera a badge de forma otimista
-                  setOpenNotifications(true);
-                }}
+        <div className="flex items-center gap-3">
+          {rightSlot ?? (
+            <>
+              <Link
+                href="/partner"
+                className="hidden sm:inline-flex rounded-full border px-3 py-1.5 text-sm hover:bg-black/5"
               >
-                <Bell className="h-5 w-5" />
+                Parceiro
+              </Link>
+
+              <button
+                aria-label="Abrir carrinho"
+                onClick={openCart}
+                className="relative grid h-9 w-9 place-items-center rounded-full hover:bg-black/5"
+              >
+                <ShoppingCart size={20} />
               </button>
 
-              {unreadCount > 0 && (
-                <span
-                  className="absolute -top-0.5 -right-0.5 h-[18px] px-1.5 rounded-full bg-pink-600 text-white text-[10px] leading-[18px] text-center whitespace-nowrap"
-                  aria-label={`${unreadCount} notificações não lidas`}
-                >
-                  {unreadCount}
-                </span>
-              )}
-            </div>
-          </div>
-        )}
+              <button
+                aria-label="Abrir notificações"
+                onClick={() => setOpenNotifications(true)}
+                className="relative grid h-9 w-9 place-items-center rounded-full hover:bg-black/5"
+              >
+                <Bell size={20} />
+                {badge > 0 && (
+                  <span
+                    className="absolute -right-1 -top-1 min-w-[18px] h-[18px] rounded-full bg-pink-500 px-[5px] text-[11px] font-bold leading-[18px] text-white text-center shadow"
+                    aria-label={`${badge} notificações não lidas`}
+                  >
+                    {badge}
+                  </span>
+                )}
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       <NotificationsModal

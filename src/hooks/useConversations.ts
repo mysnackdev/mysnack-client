@@ -8,11 +8,11 @@ export const useConversations = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user?.userId) { setItems([]); setLoading(false); return; }
+    if (!user?.uid) { setItems([]); setLoading(false); return; }
     setLoading(true);
     const unsub = ConversationsService.subscribe(user.uid, (x) => { setItems(x); setLoading(false); });
     return () => unsub && unsub();
-  }, [user?.userId]);
+  }, [user?.uid]);
 
   return { items, loading };
 };

@@ -148,3 +148,8 @@ html, body {
 .scrollbar-none::-webkit-scrollbar { display: none; }
 .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
 
+
+
+/* Hide scrollbars in horizontal carousels, but keep scrolling */
+.no-scrollbar::-webkit-scrollbar { display: none; height: 0; width: 0; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

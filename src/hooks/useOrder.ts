@@ -75,12 +75,12 @@ export function useOrder(): UseOrderApi {
   const [isModalVisible, setIsModalVisible] = React.useState<boolean>(false);
   const [currentRoute, setCurrentRoute] = React.useState<OrderRoute>("idle");
   const [userName, setUserName] = React.useState<string>("");
-  const [uid, setUid] = React.useState<string | null>(auth.currentUser?.userId ?? null);
+  const [uid, setUid] = React.useState<string | null>(auth.currentUser?.uid ?? null);
 
   // Pré-carrega nome do usuário autenticado
   React.useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
-      setUid(user?.userId ?? null);
+      setUid(user?.uid ?? null);
       if (user?.displayName) setUserName(user.displayName);
     });
     return () => unsub();

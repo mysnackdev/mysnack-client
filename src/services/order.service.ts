@@ -16,7 +16,6 @@ import {
 } from "firebase/database";
 import { getAuth } from "firebase/auth";
 import { getFunctions, httpsCallable } from "firebase/functions";
-
 /** Status aceitos em regras */
 export type OrderStatus =
   | "pedido realizado"
@@ -279,6 +278,8 @@ export class OrderService {
       cb = cbMaybe;
     }
 
+    const uid = getAuth().currentUser?.uid;
+    if (!uid) { cb([]); return () => {}; }
     return OrderService.subscribeUserOrders(uid, cb, limit);
   }
 
@@ -294,7 +295,7 @@ export class OrderService {
 
     const auth = getAuth();
     const user = auth.currentUser;
-    const ensuredUid = payload.userId ?? user?.uid ?? ensuredUserId;
+    const ensuredUid = payload.uid ?? user?.uid ?? ensuredUserId;
 
     if (!ensuredUid) {
       throw new Error("Usuário não autenticado.");
@@ -306,7 +307,7 @@ export class OrderService {
         getFunctions(undefined, REGION),
         "createOrder"
       );
-      const { data } = await fn({ ...payload, userId: ensuredUid });
+      const { data } = await fn({ ...payload, uid: ensuredUid });
       if (data && typeof data.orderId === "string") {
         return data;
       }

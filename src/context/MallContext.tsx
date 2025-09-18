@@ -27,7 +27,7 @@ export function MallProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
-      if (u && mallId) MallService.saveUserMall(u.userId, mallId).catch(() => {});
+      if (u && mallId) MallService.saveUserMall(u.uid, mallId).catch(() => {});
     });
     return () => unsub();
   }, [mallId]);
@@ -38,7 +38,7 @@ export function MallProvider({ children }: { children: React.ReactNode }) {
     const p = await MallService.getMallProfile(id);
     setProfile(p);
     const u = auth.currentUser;
-    if (u) MallService.saveUserMall(u.userId, id).catch(() => {});
+    if (u) MallService.saveUserMall(u.uid, id).catch(() => {});
   }, []);
 
   const clearMall = useCallback(() => {

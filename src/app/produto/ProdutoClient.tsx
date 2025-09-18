@@ -14,6 +14,21 @@ export default function ProdutoClient({ id, storeId }: { id: string; storeId: st
   const [p, setP] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+
+  function addToCart() {
+    try {
+      if (!p) return;
+      const raw = localStorage.getItem("mysnack_cart");
+      const arr: Array<{ id: string; name: string; qty: number; price: number }> = raw ? JSON.parse(raw) : [];
+      const id = `${p.storeId || "loja"}::${p.id || p.name}`;
+      const found = arr.find((x) => x.id === id);
+      if (found) found.qty += 1; else arr.push({ id, name: p.name, qty: 1, price: Number(p.price || 0) });
+      localStorage.setItem("mysnack_cart", JSON.stringify(arr));
+      window.dispatchEvent(new Event("cart-updated"));
+      window.dispatchEvent(new Event("open-cart"));
+    } catch (e) { console.error("addToCart failed", e); }
+  }
+
   const svc = useMemo(() => (StoreService as unknown) as {
     getItem?: (storeId: string, itemId: string) => Promise<Product>;
     getCatalog?: (storeId: string) => Promise<Catalog>;
@@ -74,7 +89,7 @@ export default function ProdutoClient({ id, storeId }: { id: string; storeId: st
       <div className="mt-3 text-emerald-600 text-xl font-bold">{formatBRL(p.price)}</div>
       {p.description && <p className="mt-3 text-zinc-700">{p.description}</p>}
       <div className="mt-6 grid grid-cols-2 gap-3">
-        <button className="w-full bg-pink-600 text-white py-3 rounded-2xl shadow">Adicionar à sacola</button>
+        <button onClick={addToCart} className="w-full bg-pink-600 text-white py-3 rounded-2xl shadow">Adicionar à sacola</button>
         <Link href="/" className="w-full bg-white border text-zinc-700 py-3 rounded-2xl text-center">Voltar</Link>
       </div>
     </main>

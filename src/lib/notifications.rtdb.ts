@@ -1,7 +1,8 @@
 "use client";
-import { db, auth, messagingPromise } from "@/firebase";
+import app, { db, auth, messagingPromise } from "@/firebase";
 import { getToken, onMessage, type Messaging } from "firebase/messaging";
 import { ref, update, onValue, query, orderByChild, limitToLast, set, remove, push } from "firebase/database";
+import { getFunctions, httpsCallable } from "firebase/functions";
 
 export type RTDBNotification = {
   id: string;
@@ -71,15 +72,39 @@ export async function bindForegroundPushToRTDB() {
   onMessage(messaging, async (payload) => {
     const user = auth.currentUser;
     if (!user) return;
-    const nRef = ref(db, `notifications/${user.uid}`);
-    const newRef = push(nRef);
-    await set(newRef, {
-      id: newRef.key,
-      title: payload.notification?.title || "Notificação",
-      body: payload.notification?.body || "",
-      createdAt: Date.now(),
-      data: (payload.data || {}) as Record<string, string>,
-      read: false,
-    });
+    const data = (payload.data || {}) as Record<string, string>;
+    const dedupKey = data?.dedupKey;
+    const baseRef = ref(db, `notifications/${user.uid}`);
+    if (dedupKey) {
+      // Upsert determinístico para evitar duplicidade (server e client colapsam no mesmo ID)
+      await set(ref(db, `notifications/${user.uid}/${dedupKey}`), {
+        id: dedupKey,
+        title: payload.notification?.title || "Notificação",
+        body: payload.notification?.body || "",
+        createdAt: Date.now(),
+        data,
+        read: false,
+      });
+    } else {
+      const newRef = push(baseRef);
+      await set(newRef, {
+        id: newRef.key as string,
+        title: payload.notification?.title || "Notificação",
+        body: payload.notification?.body || "",
+        createdAt: Date.now(),
+        data,
+        read: false,
+      });
+    }
   });
+}
+
+export async function markAllAsReadServer(): Promise<void> {
+  try {
+    const fn = httpsCallable(getFunctions(app), "markAllNotificationsRead");
+    await fn({});
+  } catch (e) {
+    console.warn("markAllAsReadServer fallback", e);
+    // fallback silencioso: a tela chamará o fluxo antigo individual
+  }
 }
