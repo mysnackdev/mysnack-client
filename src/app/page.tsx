@@ -47,7 +47,7 @@ void CheapDealsHorizontalSection;
       </section>
 
 
-      {/* Últimos Pedidos */}\n      <RecentOrders />\n\n      {/* Lojas no Shopping */}
+      {/* Últimos Pedidos */}      <RecentOrders />      {/* Lojas no Shopping */}
       <section className="mt-6">
         <div className="mt-2">
           <MallStoresSection />
