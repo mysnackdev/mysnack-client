@@ -14,7 +14,7 @@ export default function OrderStatusNotifier() {
 
     const unsubAuth = onAuthStateChanged(auth, (user) => {
       if (unsubRef.current) { unsubRef.current(); unsubRef.current = null; }
-      if (!user?.uid) return;
+      if (!user?.userId) return;
 
       unsubRef.current = OrderService.subscribeUserOrders(user.uid, (list) => {
         const seen = seenRef.current;

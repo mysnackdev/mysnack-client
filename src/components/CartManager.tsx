@@ -103,6 +103,13 @@ export default function CartManager() {
   const onCheckout = useCallback(async () => {
     if (checkingOut || items.length === 0) return;
     setCheckingOut(true);
+      const u = auth.currentUser;
+      if (!u?.uid) {
+        setCheckingOut(false);
+        try { alert('Faça login para finalizar seu pedido.'); } catch {}
+        router.push('/login');
+        return;
+      }
     try {
       const user = auth.currentUser;
       if (!user) {

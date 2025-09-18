@@ -8,15 +8,15 @@ export const usePayments = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user?.uid) { setData(null); setLoading(false); return; }
+    if (!user?.userId) { setData(null); setLoading(false); return; }
     setLoading(true);
     const unsub = PaymentsService.subscribe(user.uid, (x) => { setData(x); setLoading(false); });
     return () => unsub && unsub();
-  }, [user?.uid]);
+  }, [user?.userId]);
 
   const addCard = (card: Card) => {
     const next: PaymentsData = { balance: data?.balance ?? 0, cards: [...(data?.cards ?? []), card] };
-    if (user?.uid) PaymentsService.replace(user.uid, next);
+    if (user?.userId) PaymentsService.replace(user.uid, next);
   };
 
   return { data, loading, addCard };

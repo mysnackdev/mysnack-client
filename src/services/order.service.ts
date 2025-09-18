@@ -37,7 +37,7 @@ export type SnackOrderItem = {
 
 export type SnackOrder = {
   key: string;
-  uid: string;
+  userId: string;
   storeId: string;
   status: OrderStatus;
   createdAt: number;
@@ -115,7 +115,7 @@ function snapshotToOrders(snap: DataSnapshot): SnackOrder[] {
 
     const order: SnackOrder = {
       key: String(v.key ?? (c.key as string)),
-      uid: String(v.uid ?? ""),
+      userId: String(v.userId ?? ""),
       storeId: String(v.storeId ?? ""),
       status: (v.status as OrderStatus) ?? "pedido realizado",
       createdAt: Number(v.createdAt ?? Date.now()),
@@ -129,6 +129,28 @@ function snapshotToOrders(snap: DataSnapshot): SnackOrder[] {
 }
 
 export class OrderService {
+
+  /** Garante usuário autenticado (anônimo se necessário) e retorna userId */
+  static async ensureUserId(): Promise<string> {
+    try {
+      const { getAuth, onAuthStateChanged } = await import("firebase/auth");
+      const auth = getAuth();
+      const existing = auth.currentUser;
+      if (existing?.uid) return existing.uid;
+      // aguarda onAuthStateChanged (útil pós carregamento)
+      const uid = await new Promise<string>((resolve) => {
+        const off = onAuthStateChanged(auth, (u) => {
+          off();
+          resolve(u?.uid ?? "");
+        });
+        setTimeout(() => { try { off(); } catch {} resolve(""); }, 1000);
+      });
+      return uid;
+    } catch {
+      return "";
+    }
+  }
+
   /** Busca um pedido por ID (CF getOrderById com fallback RTDB) */
   static async getById(orderId: string): Promise<SnackOrder | null> {
     if (!orderId) return null;
@@ -160,7 +182,7 @@ export class OrderService {
 
         return {
           key: String(d.orderId),
-          uid: String(d.uid || ""),
+          userId: String(d.userId || ""),
           storeId: String(d.storeId || ""),
           status: String(d.status || "pedido realizado") as OrderStatus,
           createdAt: Number(d.createdAt || Date.now()),
@@ -199,7 +221,7 @@ export class OrderService {
 
       return {
         key: String(orderId),
-        uid: String(v?.uid ?? ""),
+        userId: String(v?.userId ?? ""),
         storeId: String(v?.storeId ?? ""),
         status: String(v?.status ?? "pedido realizado") as OrderStatus,
         createdAt: Number(v?.createdAt ?? Date.now()),
@@ -212,7 +234,7 @@ export class OrderService {
 
   /** Nova API recomendada: assina /orders_by_user/{uid} */
   static subscribeUserOrders(
-    uid: string,
+    userId: string,
     cb: (orders: SnackOrder[]) => void,
     limit = 20
   ): () => void {
@@ -220,7 +242,7 @@ export class OrderService {
       Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 20;
     const db = getDatabase();
     const q = query(
-      ref(db, `orders_by_user/${uid}`),
+      ref(db, `orders_by_user/${userId}`),
       orderByChild("createdAt"),
       limitToLast(safeLimit)
     );
@@ -234,7 +256,7 @@ export class OrderService {
    *  - listenUserOrders(uid, { limit: 10 }, (list) => void)
    */
   static listenUserOrders(
-    uid: string,
+    userId: string,
     optionsOrLimit?:
       | number
       | { limit?: number }
@@ -264,9 +286,15 @@ export class OrderService {
   static async createOrder(
     payload: CreateOrderPayload
   ): Promise<CreateOrderResult> {
+    // Garante auth e obtem userId
+    const ensuredUserId = await OrderService.ensureUserId();
+    if (!ensuredUserId) {
+      throw new Error("Usuário não autenticado.");
+    }
+
     const auth = getAuth();
     const user = auth.currentUser;
-    const ensuredUid = payload.uid ?? user?.uid ?? "";
+    const ensuredUid = payload.userId ?? user?.uid ?? ensuredUserId;
 
     if (!ensuredUid) {
       throw new Error("Usuário não autenticado.");
@@ -278,7 +306,7 @@ export class OrderService {
         getFunctions(undefined, REGION),
         "createOrder"
       );
-      const { data } = await fn({ ...payload, uid: ensuredUid });
+      const { data } = await fn({ ...payload, userId: ensuredUid });
       if (data && typeof data.orderId === "string") {
         return data;
       }
@@ -302,7 +330,7 @@ export class OrderService {
 
     const orderData = {
       key: orderId,
-      uid: ensuredUid,
+      userId: ensuredUid,
       storeId,
       status,
       createdAt,
@@ -373,7 +401,7 @@ export class OrderService {
 
       return {
         key: String(o.key),
-        uid: String(o.uid || ""),
+        userId: String(o.userId || ""),
         storeId: String(o.storeId || ""),
         status: String(o.status || "pedido realizado") as OrderStatus,
         createdAt: Number(o.createdAt || Date.now()),

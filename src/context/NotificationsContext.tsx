@@ -32,12 +32,12 @@ export const NotificationsContext = createContext<Ctx>({
 export function NotificationsProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<RTDBNotification[]>([]);
   const [enabled, setEnabled] = useState(false);
-  const [uid, setUid] = useState<string | null>(auth.currentUser?.uid || null);
+  const [uid, setUid] = useState<string | null>(auth.currentUser?.userId || null);
   const subRef = useRef<null | (() => void)>(null);
 
   // track auth
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => setUid(u?.uid || null));
+    const unsub = onAuthStateChanged(auth, (u) => setUid(u?.userId || null));
     return () => unsub();
   }, []);
 
