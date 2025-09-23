@@ -1,90 +1,134 @@
+
 "use client";
 import React, { useState } from "react";
-import { useAuth } from "@/hooks";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { saveReg } from "@/lib/registrationStore";
 
-export function RegisterForm() {
-  const { registerWithEmail } = useAuth();
-  const [email, setEmail] = useState<string>("");
-  const [password, setPassword] = useState<string>("");
-  const [confirm, setConfirm] = useState<string>("");
-  const [loading, setLoading] = useState(false);
+type FormData = {
+  displayName: string;
+  email: string;
+  phone: string;
+  password: string;
+  confirm: string;
+};
+
+export default function RegisterForm() {
+  const router = useRouter();
+
+  const {
+    register,
+    handleSubmit,
+    watch,
+    formState: { errors },
+  } = useForm<FormData>({
+    mode: "onChange",
+    defaultValues: {
+      displayName: "",
+      email: "",
+      phone: "",
+      password: "",
+      confirm: "",
+    },
+  });
+
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+  const nameVal = watch("displayName");
+  const emailVal = watch("email");
+  const passVal = watch("password");
+  const confirmVal = watch("confirm");
+
+  const step = nameVal && emailVal ? (passVal && confirmVal ? 3 : 2) : 1;
+
+  async function onSubmit(values: FormData) {
     setError(null);
     setSuccess(null);
-
-    if (password !== confirm) {
-      setError("As senhas não coincidem.");
-      return;
-    }
-
     setLoading(true);
     try {
-      await registerWithEmail(email, password);
-      setSuccess("Conta criada com sucesso! Você já pode entrar.");
-      setEmail("");
-      setPassword("");
-      setConfirm("");
-    } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : typeof err === "string" ? err : "Falha ao registrar";
-      setError(message);
+      if (values.password !== values.confirm) {
+        throw new Error("As senhas não conferem.");
+      }
+      saveReg({
+        displayName: values.displayName,
+        email: values.email,
+        phone: values.phone,
+        password: values.password,
+      });
+      setSuccess("Dados salvos. Próxima etapa: endereço.");
+      router.push("/auth/register/step-3");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Erro ao criar conta";
+      setError(msg);
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   return (
-    <form onSubmit={onSubmit} noValidate>
-      <label htmlFor="reg-email" className="text-sm">E-mail</label>
-      <input
-        id="reg-email"
-        type="email"
-        placeholder="seu@email.com"
-        onChange={(e) => setEmail(e.target.value)}
-        className="bg-white rounded w-full me-2 h-8 p-1 mb-2 border"
-        value={email}
-        required
-        autoComplete="email"
-      />
+    <div>
+      <div className="flex items-center gap-2 mb-4" aria-label="Progresso de cadastro">
+        {["Dados", "Segurança", "Endereço"].map((label, i) => {
+          const active = i + 1 <= step;
+          return (
+            <div key={label} className="flex items-center gap-2">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${active ? "bg-indigo-600 text-white" : "bg-gray-200 text-gray-700"}`}>
+                {i + 1}
+              </div>
+              <span className="text-sm hidden sm:inline">{label}</span>
+              {i < 2 && <div className="w-6 sm:w-12 h-px bg-gray-300" />}
+            </div>
+          );
+        })}
+      </div>
 
-      <label htmlFor="reg-pass" className="text-sm">Senha</label>
-      <input
-        id="reg-pass"
-        type="password"
-        placeholder="••••••••"
-        onChange={(e) => setPassword(e.target.value)}
-        className="bg-white rounded w-full me-2 h-8 p-1 mb-2 border"
-        value={password}
-        minLength={6}
-        required
-        autoComplete="new-password"
-      />
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
+        <div>
+          <label className="label">Nome completo</label>
+          <input className="input" {...register("displayName", { required: "Informe seu nome" })} placeholder="Seu nome" autoComplete="name" />
+          {errors.displayName && <p className="text-red-600 text-sm mt-1">{errors.displayName.message}</p>}
+        </div>
 
-      <label htmlFor="reg-confirm" className="text-sm">Confirmar senha</label>
-      <input
-        id="reg-confirm"
-        type="password"
-        placeholder="••••••••"
-        onChange={(e) => setConfirm(e.target.value)}
-        className="bg-white rounded w-full me-2 h-8 p-1 mb-3 border"
-        value={confirm}
-        minLength={6}
-        required
-        autoComplete="new-password"
-      />
+        <div>
+          <label className="label">E-mail</label>
+          <input className="input" type="email" {...register("email", { required: "Informe seu e-mail" })} placeholder="seu@email.com" autoComplete="email" />
+          {errors.email && <p className="text-red-600 text-sm mt-1">{errors.email.message}</p>}
+        </div>
 
-      {error && <p className="text-red-600 text-sm mb-2">{error}</p>}
-      {success && <p className="text-green-700 text-sm mb-2">{success}</p>}
+        <div>
+          <label className="label">Telefone</label>
+          <input className="input" {...register("phone", { required: "Informe seu telefone" })} placeholder="(11) 99999-9999" autoComplete="tel" />
+          {errors.phone && <p className="text-red-600 text-sm mt-1">{errors.phone.message}</p>}
+        </div>
 
-      <button type="submit" className="btn-primary w-full" disabled={loading}>
-        {loading ? "Criando conta..." : "Criar conta"}
-      </button>
-    </form>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="label">Senha</label>
+            <input className="input" type="password" {...register("password", { required: "Crie uma senha" })} placeholder="••••••••" autoComplete="new-password" />
+            {errors.password && <p className="text-red-600 text-sm mt-1">{errors.password.message}</p>}
+          </div>
+
+          <div>
+            <label className="label">Confirmar senha</label>
+            <input className="input" type="password" {...register("confirm", { required: "Confirme a senha" })} placeholder="••••••••" autoComplete="new-password" />
+            {errors.confirm && <p className="text-red-600 text-sm mt-1">{errors.confirm.message}</p>}
+          </div>
+        </div>
+
+        <button disabled={loading} className="btn-primary w-full">
+          {loading ? "Salvando…" : "Continuar"}
+        </button>
+
+        {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
+        {success && <p className="text-sm text-green-700 mt-1">{success}</p>}
+
+        <p className="text-xs text-gray-500 mt-2">
+          Já tem conta? <Link href="/auth/login" className="underline">Entrar</Link>
+        </p>
+      </form>
+    </div>
   );
 }
-
-export default RegisterForm;

@@ -25,7 +25,10 @@
     "postcss": "^8.5.4",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
-    "run": "^1.5.0"
+    "run": "^1.5.0",
+    "zod": "^3.23.8",
+    "react-hook-form": "^7.53.0",
+    "@hookform/resolvers": "^3.9.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.8",

@@ -4,7 +4,7 @@ import React from "react";
 import { useOrder, type OrderRoute } from "@/hooks/useOrder";
 import { LoginForm } from "./login-form";
 import { OrderForm } from "./order-form.component";
-import { RegisterForm } from "./register-form";
+import RegisterForm from "./register-form";
 import { SendPasswordResetEmailForm } from "./send-password-reset-email-form";
 import { getAuth, signOut, sendPasswordResetEmail } from "firebase/auth";
 

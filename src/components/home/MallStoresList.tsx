@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { StoreService } from "@/services/store.service";
 import { useMall } from "@/context/MallContext";
 
@@ -134,7 +135,7 @@ export default function MallStoresSection() {
         <div className="text-sm text-zinc-500">Nenhuma loja encontrada.</div>
       ) : (
         <ul className="space-y-3">
-          {stores.map((s) => (
+          {sorted.map((s) => (
             <li key={s.id} className="flex items-center gap-3">
               <div className="relative w-12 h-12 rounded-full overflow-hidden ring-2 ring-zinc-200 flex-shrink-0">
                 <Image
@@ -153,7 +154,7 @@ export default function MallStoresSection() {
                     {s.online ? "online" : "offline"}
                   </span>
                 </div>
-              </div>
+              </Link>
               <button className="text-zinc-400 hover:text-zinc-600" aria-label="favoritar">
                 ♡
               </button>

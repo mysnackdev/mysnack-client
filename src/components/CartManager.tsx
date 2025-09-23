@@ -6,6 +6,37 @@ import { getAuth } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { OrderService } from "@/services/order.service";
 
+/** API para outros componentes adicionarem itens ao carrinho */
+export function addItems(items: CartItem[]) {
+  try {
+    const raw = localStorage.getItem("mysnack_cart");
+    const arr: CartItem[] = raw ? JSON.parse(raw) : [];
+    // Merge por id; soma qty
+    for (const it of items) {
+      const id = String(it.id);
+      const qty = Number(it.qty ?? it.quantity ?? 1);
+      const price = Number(it.price ?? 0);
+      const name = String(it.name ?? "");
+      const found = arr.find((x) => x.id === id);
+      if (found) {
+        found.qty = Number(found.qty || 0) + qty;
+        // mantém price/name existentes; não sobrescreve se vier vazio
+        if (!found.name && name) found.name = name;
+        if (!found.price && price) found.price = price;
+      } else {
+        arr.push({ id, name, price, qty });
+      }
+    }
+    localStorage.setItem("mysnack_cart", JSON.stringify(arr));
+    window.dispatchEvent(new Event("cart-updated"));
+    window.dispatchEvent(new Event("open-cart"));
+  } catch (e) {
+    console.error("CartManager.addItems failed", e);
+  }
+}
+
+
+
 /** Gerencia o carrinho via localStorage e escuta o evento custom "open-cart". */
 export default function CartManager() {
   const [isOpen, setIsOpen] = useState(false);
