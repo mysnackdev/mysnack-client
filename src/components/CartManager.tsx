@@ -132,58 +132,16 @@ export default function CartManager() {
 
   // Finaliza o pedido
   const onCheckout = useCallback(async () => {
-    if (checkingOut || items.length === 0) return;
-    setCheckingOut(true);
-      const u = auth.currentUser;
-      if (!u?.uid) {
-        setCheckingOut(false);
-        try { alert('Faça login para finalizar seu pedido.'); } catch {}
-        router.push('/login');
-        return;
-      }
-    try {
-      const user = auth.currentUser;
-      if (!user) {
-        console.warn("User not authenticated");
-        router.push("/login");
-        return;
-      }
-
-      // Lê storeId do meta salvo pelo botão de adicionar
-      let storeId = "";
-      try {
-        const metaRaw = localStorage.getItem("mysnack_cart_meta");
-        const meta = metaRaw ? JSON.parse(metaRaw) : null;
-        storeId = String(meta?.storeId || "");
-      } catch {}
-
-      // Monta payload
-      const payloadItems = items.map((it) => ({
-        id: String(it.id),
-        name: String(it.name),
-        price: Number(it.price),
-        qty: Number(it.qty || 1),
-      }));
-
-      const { orderId } = await OrderService.createOrder({
-        storeId,
-        items: payloadItems,
-      });
-
-      // Limpa carrinho e abre página de pedidos
-      localStorage.removeItem("mysnack_cart");
-      localStorage.removeItem("mysnack_cart_meta");
-      window.dispatchEvent(new Event("cart-updated"));
-      setItems([]);
-      setIsOpen(false);
-      router.push("/orders#" + orderId);
-    } catch (e) {
-      console.error("Checkout error", e);
-      alert("Não foi possível finalizar seu pedido. Tente novamente.");
-    } finally {
-      setCheckingOut(false);
+    // Apenas navega para /checkout (fluxo multi-passos)
+    const u = auth.currentUser;
+    if (!u?.uid) {
+      try { alert('Faça login para finalizar seu pedido.'); } catch {}
+      router.push('/auth'); // aponta para sua área de login existente
+      return;
     }
-  }, [auth, checkingOut, items, router]);
+    setIsOpen(false);
+    router.push('/checkout');
+  }, [auth, router, items.length]);
 
   return (
     <CartDrawer
