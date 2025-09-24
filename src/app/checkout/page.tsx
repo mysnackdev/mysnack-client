@@ -2,7 +2,7 @@
 "use client";
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getDatabase, ref as r, onValue } from "firebase/database";
+import { getDatabase, ref as r, onValue, get } from "firebase/database";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { getAuth } from "firebase/auth";
 import app from "@/firebase";
@@ -24,7 +24,52 @@ export default function CheckoutPage() {
   const db = getDatabase(app);
   const fns = getFunctions(app, process.env.NEXT_PUBLIC_FIREBASE_FUNCTIONS_REGION || "us-central1");
 
+  
+
   const [step, setStep] = useState<Step>("itens");
+// --- Bypass de QR: seleciona uma mesa de teste no shopping da loja ---
+// Usa backoffice/stores/{storeId}/shoppingSlug (leitura pública) e evita ler /backoffice/shoppings
+async function mockSelectTable() {
+  try {
+    const db = getDatabase();
+
+    // 1) mantém mall atual se já existir (ex.: veio de um QR real anterior)
+    let mall = tableInfo?.mallId as string | undefined;
+
+    // 2) tenta recuperar mall salvo (se você usa localStorage)
+    if (!mall && typeof window !== "undefined") {
+      const saved = localStorage.getItem("mysnack.mallId");
+      if (saved) mall = saved.replace(/^"|"$/g, "");
+    }
+
+    // 3) pega o slug do shopping pelo storeId (regra .read liberada)
+    if (!mall && storeId) {
+      const slugSnap = await get(r(db, `backoffice/stores/${storeId}/shoppingSlug`));
+      if (slugSnap.exists()) {
+        mall = String(slugSnap.val());
+      }
+    }
+
+    if (!mall) {
+      alert("Não foi possível identificar o shopping desta loja para mockar a mesa.");
+      return;
+    }
+
+    // 4) NÃO lê /backoffice/shoppings/{mall}/tables (bloqueado por regra)
+    //    Só mocka uma mesa fixa, suficiente para o fluxo do checkout
+    const tableId = "A1";
+
+    setTableInfo({
+      raw: `mock:m=${mall};t=${tableId}`,
+      mallId: mall,
+      table: tableId,
+    });
+  } catch (err) {
+    console.error("mockSelectTable error", err);
+    alert("Falha ao mockar mesa.");
+  }
+}
+
   const [items, setItems] = useState<CartItem[]>([]);
   const [storeId, setStoreId] = useState<string>("");
   const [accepted, setAccepted] = useState<Record<string, boolean>>({});
@@ -137,6 +182,11 @@ export default function CheckoutPage() {
         </div>
       )}
       <p className="text-xs text-neutral-500">A câmera será aberta para leitura do QR da mesa. Também é possível colar o conteúdo do QR no diálogo.</p>
+{process.env.NODE_ENV !== "production" && (
+  <button className="btn-secondary w-full mt-2" onClick={mockSelectTable}>
+    Usar mesa de teste (bypass QR)
+  </button>
+)}
     </div>
     <Summary subtotal={subtotal} serviceFee={serviceFee} deliveryFee={deliveryFee} discount={discount} total={total} />
     <div className="flex gap-3">

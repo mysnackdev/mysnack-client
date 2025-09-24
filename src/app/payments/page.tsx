@@ -1,7 +1,7 @@
 
 'use client';
 import { useEffect, useState } from "react";
-import BottomNav from "@/components/BottomNav";
+import { BottomNav } from "@/components/BottomNav";
 import { Trash2, CreditCard, Star, Plus } from "lucide-react";
 import { addCard, deleteCard, listenCards, SavedCard, setDefaultCard } from "@/services/payments.service";
 
@@ -38,7 +38,7 @@ export default function PaymentsPage() {
       <p className="text-sm opacity-70 mb-4">Meus métodos de pagamento</p>
 
       <div className="space-y-3 mb-6">
-        {cards.length === 0 && <p className="text-sm opacity-70">Nenhum cartão cadastrado. {/** Se não estiver logado, faça login para ver seus cartões. */}</p>}
+        {cards.length === 0 && <p className="text-sm opacity-70">Nenhum cartão cadastrado.</p>}
         {cards.map((card) => (
           <div key={card.id} className="rounded-2xl border border-gray-300 shadow-sm p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
