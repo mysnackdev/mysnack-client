@@ -27,6 +27,7 @@ export default function CheckoutPage() {
   
 
   const [step, setStep] = useState<Step>("itens");
+  const [bankInfo, setBankInfo] = useState<{pix:boolean; banks: Record<string, boolean>}>({pix:false, banks:{}});
 // --- Bypass de QR: seleciona uma mesa de teste no shopping da loja ---
 // Usa backoffice/stores/{storeId}/shoppingSlug (leitura pública) e evita ler /backoffice/shoppings
 async function mockSelectTable() {
@@ -93,14 +94,42 @@ async function mockSelectTable() {
     } catch {}
   }, []);
 
-  // Fetch accepted payments by store
+  
+  // Fetch shopping payments (bank + online card methods) based on store's shoppingSlug
   useEffect(() => {
     if (!storeId) return;
-    const ref = r(db, `backoffice/tenants/${storeId}/config/acceptedPayments`);
-    return onValue(ref, (snap) => setAccepted((snap.val() ?? {}) as Record<string, boolean>));
+    const storeRef = r(db, `backoffice/stores/${storeId}/shoppingSlug`);
+    let unsub2: any;
+    const unsub1 = onValue(storeRef, (snap) => {
+      const slug = snap.val();
+      if (!slug) {
+        setAccepted({});
+        return;
+      }
+      const payRef = r(db, `backoffice/shoppings/${slug}/payments`);
+      unsub2 && unsub2();
+      unsub2 = onValue(payRef, (ps) => {
+        const v = (ps.val() ?? {}) as any;
+        // Normalize to accepted map like {credit: boolean, debit: boolean, pix: boolean}
+        const acc: Record<string, boolean> = {
+          credit_card: !!v?.counter?.credit || !!v?.online?.credit,
+          debit_card: !!v?.counter?.debit || !!v?.online?.debit,
+          pix: !!v?.bank?.pix,
+        };
+        setAccepted(acc);
+        // expose bank info for PIX/banks
+        setBankInfo({
+          pix: !!v?.bank?.pix,
+          banks: v?.bank?.banks ?? {},
+        });
+      });
+    });
+    return () => {
+      unsub1 && unsub1();
+      unsub2 && unsub2();
+    };
   }, [db, storeId]);
-
-  const subtotal = useMemo(() => items.reduce((s, it) => s + (Number(it.price || 0) * Number(it.qty || 1)), 0), [items]);
+const subtotal = useMemo(() => items.reduce((s, it) => s + (Number(it.price || 0) * Number(it.qty || 1)), 0), [items]);
   const serviceFee = 0;
   const deliveryFee = 0;
   const discount = 0;
