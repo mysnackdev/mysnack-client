@@ -1,7 +1,7 @@
 
 'use client';
 import { useEffect, useState } from "react";
-import { BottomNav } from "@/components/BottomNav";
+import BottomNav from "@/components/BottomNav";
 import { Trash2, CreditCard, Star, Plus } from "lucide-react";
 import { addCard, deleteCard, listenCards, SavedCard, setDefaultCard } from "@/services/payments.service";
 

@@ -20,7 +20,7 @@ const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
 export const db = getDatabase(app);
-export const functions = getFunctions(app);
+export const functions = getFunctions(app, 'us-central1');
 
 /**
  * Promise que resolve para o Firebase Messaging quando:

@@ -1,4 +1,4 @@
-import { getDatabase, ref, push, set, remove, update, get, child } from "firebase/database";
+import { getDatabase, ref, push, set, remove, update, get, child, onValue, off } from "firebase/database";
 import { auth } from "@/firebase";
 
 /**
@@ -46,6 +46,31 @@ export async function listCards(): Promise<SavedCard[]> {
   if (!snap.exists()) return [];
   const raw = snap.val() as Record<string, Omit<SavedCard, "id">>;
   return Object.entries(raw).map(([id, v]) => ({ id, ...(v as any) }));
+}
+
+export function listenCards(cb: (cards: SavedCard[]) => void): () => void {
+  const uid = auth.currentUser?.uid;
+  if (!uid) {
+    cb([]);
+    return () => {};
+  }
+  const q = cardsRef(uid);
+  const handler = (snap: any) => {
+    if (!snap.exists()) {
+      cb([]);
+      return;
+    }
+    const raw = snap.val() as Record<string, Omit<SavedCard, "id">>;
+    const arr = Object.entries(raw).map(([id, v]) => ({ id, ...(v as any) }));
+    // Ordena por createdAt desc, com default primeiro
+    arr.sort((a: any, b: any) => {
+      if (a.default === b.default) return (b.createdAt ?? 0) - (a.createdAt ?? 0);
+      return a.default ? -1 : 1;
+    });
+    cb(arr as SavedCard[]);
+  };
+  onValue(q, handler, { onlyOnce: false });
+  return () => off(q, "value", handler);
 }
 
 export async function addCard(input: { holder: string; number: string; exp: string; cvv: string; type: UiCardType; }): Promise<string> {

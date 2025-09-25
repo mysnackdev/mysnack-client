@@ -47,6 +47,7 @@ export function LoginForm() {
       {error && <p className="error">{error}</p>}
 
       <div className="flex items-center justify-between">
+        <Link href="/criar-conta" className="text-sm underline opacity-80">Criar conta</Link>
         <Link href="/orders" className="text-sm underline opacity-80">Esqueci minha senha</Link>
         <button type="submit" className="btn-primary w-auto px-5" disabled={loading}>
           {loading ? "Entrando..." : "Entrar"}

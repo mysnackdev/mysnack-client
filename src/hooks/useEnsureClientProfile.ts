@@ -4,6 +4,8 @@
 import { useEffect } from "react";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
 import { getDatabase, ref, get, set, update } from "firebase/database";
+import { httpsCallable } from "firebase/functions";
+import { functions } from "@/firebase";
 
 type MinimalProfile = {
   uid: string;
@@ -37,7 +39,7 @@ export function useEnsureClientProfile() {
       } else {
         await update(r, payload);
       }
-    });
+    }); } catch (e) { console.error('[useEnsureClientProfile] upsertClientProfile error', e); }
     return () => unsub();
   }, []);
 }
