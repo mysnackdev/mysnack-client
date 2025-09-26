@@ -1,5 +1,6 @@
 "use client";
 import React, { useEffect, useMemo, useState } from "react";
+import { useShoppingPaymentsCF } from "@/hooks/useShoppingPayments";
 import { useRouter } from "next/navigation";
 import { getDatabase, ref as r, onValue, get } from "firebase/database";
 import { getFunctions, httpsCallable } from "firebase/functions";
@@ -108,7 +109,21 @@ export default function CheckoutPage() {
 
   const [items, setItems] = useState<CartItem[]>([]);
   const [storeId, setStoreId] = useState<string>("");
-  const [accepted, setAccepted] = useState<Record<string, boolean>>({});
+  
+  const paymentsCF = useShoppingPaymentsCF({ slug: null, storeId, bypass: null });
+  const accepted = useMemo(() => ({
+    pix: paymentsCF.accepted.pix,
+    credit_card: paymentsCF.accepted.credit,
+    debit_card: paymentsCF.accepted.debit,
+    wallet: false,
+    google_pay: false,
+    cash_on_delivery: false,
+  }), [paymentsCF.accepted]);
+
+// replaced by hook:
+// const [accepted, setAccepted] = useState<Record<string, boolean>>({});
+// computed by hook: paymentsCF.empty
+  // diagnostics for payments
   const [payment, setPayment] = useState<PaymentMethod | null>(null);
   const [cpf, setCpf] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
@@ -134,43 +149,7 @@ export default function CheckoutPage() {
       if (m?.storeId) setStoreId(String(m.storeId));
     } catch {}
   }, []);
-
-  // Fetch shopping payments (bank + online card methods) based on store's shoppingSlug
-  useEffect(() => {
-    if (!storeId) return;
-    const storeRef = r(db, `backoffice/stores/${storeId}/shoppingSlug`);
-    let unsub2: any;
-    const unsub1 = onValue(storeRef, (snap) => {
-      const slug = snap.val();
-      if (!slug) {
-        setAccepted({});
-        return;
-      }
-      const payRef = r(db, `backoffice/shoppings/${slug}/payments`);
-      unsub2 && unsub2();
-      unsub2 = onValue(payRef, (ps) => {
-        const v = (ps.val() ?? {}) as any;
-        // Normalize to accepted map like {credit: boolean, debit: boolean, pix: boolean}
-        const acc: Record<string, boolean> = {
-          credit_card: !!v?.counter?.credit || !!v?.online?.credit,
-          debit_card: !!v?.counter?.debit || !!v?.online?.debit,
-          pix: !!v?.bank?.pix,
-        };
-        setAccepted(acc);
-        // expose bank info for PIX/banks
-        setBankInfo({
-          pix: !!v?.bank?.pix,
-          banks: v?.bank?.banks ?? {},
-        });
-      });
-    });
-    return () => {
-      unsub1 && unsub1();
-      unsub2 && unsub2();
-    };
-  }, [db, storeId]);
-
-  // carregar cartões quando o usuário escolher "Cartão de crédito"
+// carregar cartões quando o usuário escolher "Cartão de crédito"
   useEffect(() => {
     const shouldLoad = step === "pagamento" && payment === "credit_card";
     if (!shouldLoad) return;
@@ -291,9 +270,6 @@ export default function CheckoutPage() {
 
   return (
     <div className="min-h-screen pb-20">
-      <header className="sticky top-0 z-10 border-b bg-white/70 backdrop-blur p-4">
-        <h1 className="text-xl font-semibold">Finalizar pedido</h1>
-      </header>
 
       <main className="mx-auto max-w-2xl p-4 space-y-6">
         <Stepper step={step} />
@@ -362,6 +338,19 @@ export default function CheckoutPage() {
 
         {step === "pagamento" && (
           <section className="rounded-2xl border p-4 space-y-4">
+            {paymentsCF.empty && (
+              <div className="rounded-xl border p-3 text-sm space-y-2 bg-neutral-50">
+                <div className="font-medium">🔍 Diagnóstico dos meios de pagamento</div>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li><strong>Path consultado:</strong> {paymentsCF.path || "(desconhecido)"}</li>
+                  <li><strong>Nó payments existe?</strong> {paymentsCF.exists === null ? "desconhecido" : (paymentsCF.exists ? "sim" : "não")}</li>
+                  <li><strong>Erro de leitura:</strong> {paymentsCF.error ? String(paymentsCF.error) : "nenhum erro retornado"}</li>
+                  <li><strong>Mapa normalizado (accepted):</strong> {JSON.stringify(accepted)}</li>
+                  <li><strong>RAW payments:</strong> <pre className="whitespace-pre-wrap break-words">{JSON.stringify(paymentsCF.raw ?? {}, null, 2)}</pre></li>
+                  <li><strong>RAW shopping:</strong> <pre className="whitespace-pre-wrap break-words">{JSON.stringify(paymentsCF.shoppingRaw ?? {}, null, 2)}</pre></li>
+                </ul>
+              </div>
+            )}
             <PaymentOptions
               accepted={accepted}
               value={payment}

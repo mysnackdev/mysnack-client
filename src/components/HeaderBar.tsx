@@ -42,7 +42,7 @@ export default function HeaderBar({ title, rightSlot }: HeaderBarProps) {
     <header className="sticky top-0 z-30 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/60">
       <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 border-b px-4 py-3">
         <Link href="/" aria-label="Página inicial" className="flex items-center gap-3">
-          <Image src="/logo.png" alt="MySnack" width={28} height={28} className="rounded-lg" />
+          <Image src="/../logo.svg" alt="MySnack" width={28} height={28} className="rounded-lg" />
           <span className="font-semibold tracking-tight">MySnack</span>
         </Link>
 
@@ -51,13 +51,6 @@ export default function HeaderBar({ title, rightSlot }: HeaderBarProps) {
         <div className="flex items-center gap-3">
           {rightSlot ?? (
             <>
-              <Link
-                href="/partner"
-                className="hidden sm:inline-flex rounded-full border px-3 py-1.5 text-sm hover:bg-black/5"
-              >
-                Parceiro
-              </Link>
-
               <button
                 aria-label="Abrir carrinho"
                 onClick={openCart}
