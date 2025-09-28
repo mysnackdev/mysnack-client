@@ -101,10 +101,51 @@ export async function setDefaultCard(cardId: string): Promise<void> {
   const updates: Record<string, any> = {};
   if (snap.exists()) {
     Object.keys(snap.val() as any).forEach((id) => {
-      updates[`${cardsRef().toString().replace(getDatabase().ref().toString(), "")}/${id}/default`] = id === cardId;
+      updates[`${id}/default`] = id === cardId;
     });
   } else {
-    updates[`${cardsRef().toString().replace(getDatabase().ref().toString(), "")}/${cardId}/default`] = true;
+    updates[`${cardId}/default`] = true;
   }
-  await update(ref(db), updates);
+  await update(cardsRef(), updates);
 }
+
+/** ------------------------------------------------------------------
+ * Backward-compatible facade expected by hooks like usePayments()
+ * ------------------------------------------------------------------
+ */
+export type Card = SavedCard;
+export interface PaymentsData { balance: number; cards: Card[]; }
+
+function mapCardsToData(cards: SavedCard[]): PaymentsData {
+  return { balance: 0, cards };
+}
+
+export const PaymentsService = {
+  /**
+   * Subscribe to the user's saved cards and map to PaymentsData.
+   * uid param is accepted for compatibility but current RTDB paths use auth.currentUser.
+   */
+  subscribe(uid: string, cb: (data: PaymentsData) => void): () => void {
+    return listenCards((cards) => cb(mapCardsToData(cards)));
+  },
+
+  /**
+   * Replace all cards with the provided list. Only fields used by the UI are persisted.
+   */
+  async replace(uid: string, data: PaymentsData): Promise<void> {
+    // naive replace: delete all and recreate
+    const current = await listCards();
+    for (const c of current) {
+      await deleteCard(c.id);
+    }
+    for (const c of (data.cards ?? [])) {
+      // allow passing either SavedCard or minimal Card
+      const holder = c.holder ?? "Cartão";
+      const exp = c.exp ?? "12/30";
+      const brand = c.brand ?? "Desconhecido";
+      const last4 = c.last4 ?? "0000";
+      const type: UiCardType = (c as any).type === "debit_card" ? "Débito" : "Crédito";
+      await addCard({ holder, number: `****${last4}`, exp, cvv: "000", type });
+    }
+  }
+};

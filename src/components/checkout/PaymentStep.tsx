@@ -16,35 +16,6 @@ type Props = {
 };
 
 
-async function handleMockTable() {
-  try {
-    // TODO: get real storeId from cart context or props
-    const storeId = (cart?.storeId) || (cart?.items?.[0]?.storeId);
-    if (!storeId) throw new Error("storeId do carrinho não encontrado");
-    const place = await mockSelectTable(storeId);
-    // Set in local state if available
-    try { setDeliveryPlace && setDeliveryPlace(place); } catch {}
-    // Optional: persist a draft for the user
-    try {
-      const { getAuth } = await import("firebase/auth");
-      const { getDatabase, ref, update } = await import("firebase/database");
-      const auth = getAuth();
-      const uid = auth.currentUser?.uid;
-      if (uid) {
-        const db = getDatabase();
-        await update(ref(db, `client/checkouts/${uid}`), { deliveryPlace: place });
-      }
-    } catch {}
-    // Optional: toast
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const anyWindow: any = window;
-      (anyWindow.toast?.success || console.log)(`Mesa de teste selecionada em ${place.shoppingName}`);
-    } catch {}
-  } catch (e:any) {
-    alert(e?.message ?? "Falha ao mockar mesa");
-  }
-}
 export default function PaymentStep({ value, onChange, onNext, onBack }: Props) {
   const [method, setMethod] = useState<"pix" | "card">(value?.method ?? "pix");
   const [cards, setCards] = useState<UserCard[]>([]);

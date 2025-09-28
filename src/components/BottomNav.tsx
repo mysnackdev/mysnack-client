@@ -5,8 +5,13 @@ import { Home, Search, FileText, User as UserIcon } from "lucide-react";
 import { usePathname } from "next/navigation";
 import React from "react";
 
-export default function BottomNav() {
+type Tab = 'inicio' | 'busca' | 'orders' | 'perfil';
+export default function BottomNav({ active }: { active?: Tab }) {
   const pathname = usePathname();
+
+  const forced = active;
+  const isActive = (tab: Tab, fallback: boolean) => (forced ? forced === tab : fallback);
+
 
   const item = (
     href: string,
@@ -35,19 +40,19 @@ export default function BottomNav() {
             "/busca",
             "Busca",
             <Search className="h-5 w-5" />,
-            pathname?.startsWith("/busca") || false,
+            isActive('busca', pathname?.startsWith("/busca") || false),
           )}
           {item(
             "/orders",
             "Pedidos",
             <FileText className="h-5 w-5" />,
-            pathname?.startsWith("/orders") || false,
+            isActive('orders', pathname?.startsWith("/orders") || false),
           )}
           {item(
             "/perfil",
             "Perfil",
             <UserIcon className="h-5 w-5" />,
-            pathname?.startsWith("/perfil") || false,
+            isActive('perfil', pathname?.startsWith("/perfil") || false),
           )}
         </div>
       </div>

@@ -11,6 +11,7 @@ export type FoodStore = {
   nome: string;
   contato: StoreContact;
   pacotes: FoodStoreCombo[];
+  online?: boolean;
 };
 
 export type StoreContact = {

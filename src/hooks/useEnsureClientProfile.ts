@@ -2,10 +2,8 @@
 "use client";
 
 import { useEffect } from "react";
-import { getAuth, onAuthStateChanged, User } from "firebase/auth";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { getDatabase, ref, get, set, update } from "firebase/database";
-import { httpsCallable } from "firebase/functions";
-import { functions } from "@/firebase";
 
 type MinimalProfile = {
   uid: string;
@@ -16,30 +14,37 @@ type MinimalProfile = {
 };
 
 /**
- * Garante que exista um perfil do cliente em /client/profiles/{uid}
- * (utilizado pelo backoffice para mostrar nome/e-mail/telefone no pedido).
+ * Garante que o nó client/profiles/{uid} exista e esteja atualizado.
+ * Não lança erros para não quebrar a UI; apenas loga no console.
  */
 export function useEnsureClientProfile() {
   useEffect(() => {
     const auth = getAuth();
     const db = getDatabase();
-    const unsub = onAuthStateChanged(auth, async (u: User | null) => {
-      if (!u?.uid) return;
-      const r = ref(db, `/client/profiles/${u.uid}`);
-      const snap = await get(r);
-      const payload: MinimalProfile = {
-        uid: u.uid,
-        displayName: u.displayName ?? null,
-        email: u.email ?? null,
-        phone: u.phoneNumber ?? null,
-        updatedAt: Date.now()
-      };
-      if (!snap.exists()) {
-        await set(r, payload);
-      } else {
-        await update(r, payload);
+
+    const unsub = onAuthStateChanged(auth, async (u) => {
+      if (!u) return;
+      try {
+        const r = ref(db, `client/profiles/${u.uid}`);
+        const snap = await get(r);
+        const payload: MinimalProfile = {
+          uid: u.uid,
+          displayName: u.displayName ?? null,
+          email: u.email ?? null,
+          phone: u.phoneNumber ?? null,
+          updatedAt: Date.now()
+        };
+        if (!snap.exists()) {
+          await set(r, payload);
+        } else {
+          await update(r, payload);
+        }
+      } catch (e) {
+        // Evita interromper a renderização.
+        console.error("[useEnsureClientProfile] upsertClientProfile error", e);
       }
-    }); } catch (e) { console.error('[useEnsureClientProfile] upsertClientProfile error', e); }
+    });
+
     return () => unsub();
   }, []);
 }

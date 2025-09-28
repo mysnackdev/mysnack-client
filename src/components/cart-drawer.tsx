@@ -1,14 +1,8 @@
 "use client";
 
 import React from "react";
-
-export interface CartItem {
-  id: string;
-  name: string;
-  qty: number;
-  price: number;
-}
-
+import type { CartItem } from "@/@types/cart";
+export type { CartItem } from "@/@types/cart";
 
 export interface CartDrawerProps {
   isOpen: boolean;
@@ -27,7 +21,7 @@ export function CartDrawer({
   onChangeQty,
   onCheckout,
 }: CartDrawerProps) {
-  const subtotal = items.reduce((sum, it) => sum + it.qty * it.price, 0);
+  const subtotal = items.reduce((sum, it) => sum + ((it.qty ?? it.quantity ?? 1) * (it.price ?? 0)), 0);
 
   return (
     <aside
@@ -53,19 +47,19 @@ export function CartDrawer({
                 <div>
                   <p className="font-medium">{it.name}</p>
                   <p className="text-sm text-muted-foreground">
-                    {it.qty} x R$ {it.price.toFixed(2)}
+                    {it.qty} x R$ {(it.price ?? 0).toFixed(2)}
                   </p>
                 </div>
 
                 <div className="flex items-center gap-1">
                   <button
                     className="rounded border px-2"
-                    onClick={() => onChangeQty(it.id, Math.max(1, it.qty - 1))}
+                    onClick={() => onChangeQty(it.id, Math.max(1, (it.qty ?? it.quantity ?? 1) - 1))}
                   >
                     −
                   </button>
                   <span className="px-2">{it.qty}</span>
-                  <button className="rounded border px-2" onClick={() => onChangeQty(it.id, it.qty + 1)}>
+                  <button className="rounded border px-2" onClick={() => onChangeQty(it.id, (it.qty ?? it.quantity ?? 1) + 1)}>
                     +
                   </button>
                 </div>
@@ -73,7 +67,7 @@ export function CartDrawer({
 
               <div className="mt-2 flex items-center justify-between">
                 <span className="text-sm">
-                  Total: <strong>R$ {(it.qty * it.price).toFixed(2)}</strong>
+                  Total: <strong>R$ {(((it.qty ?? it.quantity ?? 1) * (it.price ?? 0))).toFixed(2)}</strong>
                 </span>
                 <button className="text-sm text-red-600 hover:underline" onClick={() => onRemoveItem(it.id)}>
                   Remover

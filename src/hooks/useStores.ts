@@ -22,6 +22,9 @@ export interface FoodStore {
   contato?: string;
   /** combos/pacotes */
   pacotes?: ComboItem[];
+  /** status operacional */
+  online?: boolean;
+  isOpenNow?: boolean;
   /** novos campos do backoffice/CF */
   pedidoMinimo?: number;
   horarios?: Record<string, { enabled: boolean; open: string; close: string }>;
@@ -135,7 +138,8 @@ function normalizeFromCF(cf: GetFoodStoresResult): FoodStore[] {
       telefone,
       contato: website,
       pacotes: pacotes.length ? pacotes : undefined,
-    };
+      online: (raw as any)?.online ?? (raw as any)?.isOpenNow ?? undefined,
+      isOpenNow: (raw as any)?.isOpenNow ?? (raw as any)?.online ?? undefined,    };
   });
 
   return stores.sort((a, b) => (a?.nome ?? "").localeCompare(b?.nome ?? ""));
@@ -203,7 +207,8 @@ function normalizeLegacy(payload: unknown): FoodStore[] {
       telefone,
       contato: website,
       pacotes: pacotes.length ? pacotes : undefined,
-    };
+      online: typeof r["online"] === "boolean" ? (r["online"] as boolean) : undefined,
+      isOpenNow: typeof r["isOpenNow"] === "boolean" ? (r["isOpenNow"] as boolean) : undefined,    };
   });
 
   return stores.sort((a, b) => (a?.nome ?? "").localeCompare(b?.nome ?? ""));

@@ -27,7 +27,7 @@ type Step =
   | "falha"
   | "cancelado";
 
-type CartItem = { id: string | number; name: string; price: number; qty?: number };
+type CartItem = { id: string | number; name: string; price: number; qty?: number; storeId?: string };
 
 type UserCard = {
   id: string;
@@ -44,35 +44,8 @@ function currency(v: number) {
 }
 
 
-async function handleMockTable() {
-  try {
-    // TODO: get real storeId from cart context or props
-    const storeId = (cart?.storeId) || (cart?.items?.[0]?.storeId);
-    if (!storeId) throw new Error("storeId do carrinho não encontrado");
-    const place = await mockSelectTable(storeId);
-    // Set in local state if available
-    try { setDeliveryPlace && setDeliveryPlace(place); } catch {}
-    // Optional: persist a draft for the user
-    try {
-      const { getAuth } = await import("firebase/auth");
-      const { getDatabase, ref, update } = await import("firebase/database");
-      const auth = getAuth();
-      const uid = auth.currentUser?.uid;
-      if (uid) {
-        const db = getDatabase();
-        await update(ref(db, `client/checkouts/${uid}`), { deliveryPlace: place });
-      }
-    } catch {}
-    // Optional: toast
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const anyWindow: any = window;
-      (anyWindow.toast?.success || console.log)(`Mesa de teste selecionada em ${place.shoppingName}`);
-    } catch {}
-  } catch (e:any) {
-    alert(e?.message ?? "Falha ao mockar mesa");
-  }
-}
+
+
 export default function CheckoutPage() {
   const router = useRouter();
   const auth = getAuth();
@@ -109,6 +82,35 @@ export default function CheckoutPage() {
 
   const [items, setItems] = useState<CartItem[]>([]);
   const [storeId, setStoreId] = useState<string>("");
+
+// Mock de QR dentro do componente (usa storeId/items do estado)
+const handleMockTable = React.useCallback(async () => {
+  try {
+    const id = storeId || (items && items[0]?.storeId);
+    if (!id) throw new Error("Loja não identificada para mockar a mesa.");
+    const place = await mockSelectTableForCheckout(id);
+    try { setTableInfo(place as QrResult); } catch {}
+    // persistir rascunho
+    try {
+      const { getAuth } = await import("firebase/auth");
+      const { getDatabase, ref, update } = await import("firebase/database");
+      const uid = getAuth().currentUser?.uid;
+      if (uid) {
+        const db = getDatabase();
+        await update(ref(db, `client/checkouts/${uid}`), { deliveryPlace: place });
+      }
+    } catch {}
+    // toast opcional
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const anyWindow: any = window;
+      (anyWindow.toast?.success || console.log)(`Mesa de teste selecionada em ${place.mallId || "shopping"}`);
+    } catch {}
+  } catch (e: any) {
+    alert(e?.message ?? "Falha ao mockar mesa");
+  }
+}, [storeId, items]);
+
   
   const paymentsCF = useShoppingPaymentsCF({ slug: null, storeId, bypass: null });
   const accepted = useMemo(() => ({

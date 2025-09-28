@@ -52,5 +52,6 @@
     "glob-parent": "^6.0.2",
     "semver": "^7.6.3",
     "postcss": "^8.5.4"
-  }
+  },
+  "type": "module"
 }
