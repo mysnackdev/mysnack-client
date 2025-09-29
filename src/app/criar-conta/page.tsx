@@ -6,9 +6,8 @@ import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useAuth } from "@/hooks";
 import { getAuth, updateProfile } from "firebase/auth";
-import { httpsCallable } from "firebase/functions";
-import { db, functions } from "@/firebase";
-import { ref, set, update as rtdbUpdate } from "firebase/database";
+import { db } from "@/firebase";
+import { ref, update as rtdbUpdate } from "firebase/database";
 
 const BottomNav = dynamic(() => import("@/components/bottom-nav"), { ssr: false });
 

@@ -2,7 +2,7 @@
 'use client';
 import { useEffect, useState } from "react";
 import BottomNav from "@/components/BottomNav";
-import { Trash2, CreditCard, Star, Plus } from "lucide-react";
+import { Trash2, CreditCard, Plus } from "lucide-react";
 import { addCard, deleteCard, listenCards, SavedCard, setDefaultCard } from "@/services/payments.service";
 
 export default function PaymentsPage() {
@@ -16,7 +16,7 @@ export default function PaymentsPage() {
 
   useEffect(() => {
     const unsub = listenCards((c) => setCards(c));
-    return () => { /* onValue uses persistent listener; nothing to detach here in this helper */ };
+    return () => { try { unsub(); } catch {} };
   }, []);
 
   const maskNum = (n: string) => n.replace(/\s+/g, '').replace(/(\d{4})(?=\d)/g, '$1 ').trim();
@@ -88,7 +88,7 @@ export default function PaymentsPage() {
           </label>
           <label className="block sm:col-span-2">
             <div className="text-xs font-medium opacity-70 mb-1">Tipo</div>
-            <select className="input" value={type} onChange={(e)=>setType(e.target.value as any)}>
+            <select className="input" value={type} onChange={(e)=>setType(e.target.value as "Crédito" | "Débito")}>
               <option>Crédito</option>
               <option>Débito</option>
             </select>

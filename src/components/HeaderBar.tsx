@@ -16,7 +16,6 @@ export interface HeaderBarProps {
   rightSlot?: React.ReactNode;
 }
 
-function safeSrc(u?: string | null) { return (typeof u === "string" && u.trim() !== "") ? u : null; }
 
 export default function HeaderBar({ title, rightSlot }: HeaderBarProps) {
   // Pega as notificações e calcula o badge de modo defensivo

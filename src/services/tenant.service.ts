@@ -8,7 +8,7 @@ export type DeliveryArea =
 export type TenantDelivery = {
   enabled?: boolean;
   modes?: { delivery?: boolean; pickup?: boolean; inhouse?: boolean };
-  areas?: Record<string, any>;
+  areas?: Record<string, unknown>;
   updatedAt?: number;
 };
 
@@ -29,10 +29,10 @@ export const Geo = {
   },
 };
 
-function asNumber(v: any, d = 0): number {
+function asNumber(v: unknown, d = 0): number {
   return typeof v === "number" && isFinite(v) ? v : d;
 }
-function asBool(v: any, d = false): boolean {
+function asBool(v: unknown, d = false): boolean {
   return typeof v === "boolean" ? v : d;
 }
 
@@ -42,34 +42,38 @@ export async function getTenantDelivery(tenantId: string): Promise<TenantDeliver
     const snap = await get(ref(db, `client/stores/${tenantId}/delivery`));
     if (!snap.exists()) return null;
     const raw = snap.val() || {};
-    const areas: Record<string, any> = raw.areas || {};
+    const areas: Record<string, unknown> = raw.areas || {};
     const normAreas: Record<string, DeliveryArea> = {};
-    for (const [id, a] of Object.entries<any>(areas)) {
-      const type = String(a.type || "radius");
+    for (const [id, a] of Object.entries(areas as Record<string, unknown>)) {
+      const area = a as Record<string, unknown>;
+      const type = String(area.type || "radius");
       if (type === "radius") {
         normAreas[id] = {
           id,
           type: "radius",
-          center: { lat: asNumber(a.center?.lat), lng: asNumber(a.center?.lng) },
-          radiusKm: asNumber(a.radiusKm),
-          name: a.name,
-          etaMin: asNumber(a.etaMin),
-          etaMax: asNumber(a.etaMax),
-          feeBase: asNumber(a.feeBase),
-          feePerKm: asNumber(a.feePerKm),
-          minOrder: asNumber(a.minOrder),
+          center: { lat: asNumber(area.center && (area.center as Record<string, unknown>).lat), lng: asNumber(area.center && (area.center as Record<string, unknown>).lng) },
+          radiusKm: asNumber(area.radiusKm),
+          name: area.name as string | undefined,
+          etaMin: asNumber(area.etaMin),
+          etaMax: asNumber(area.etaMax),
+          feeBase: asNumber(area.feeBase),
+          feePerKm: asNumber(area.feePerKm),
+          minOrder: asNumber(area.minOrder),
         };
-      } else if (Array.isArray(a.points)) {
+      } else if (Array.isArray(area.points)) {
         normAreas[id] = {
           id,
           type: "polygon",
-          points: a.points.map((p: any) => ({ lat: asNumber(p.lat), lng: asNumber(p.lng) })),
-          name: a.name,
-          etaMin: asNumber(a.etaMin),
-          etaMax: asNumber(a.etaMax),
-          feeBase: asNumber(a.feeBase),
-          feePerKm: asNumber(a.feePerKm),
-          minOrder: asNumber(a.minOrder),
+          points: Array.isArray(area["points"]) ? area["points"].map((p: unknown) => {
+            const point = p as Record<string, unknown>;
+            return { lat: asNumber(point['lat']), lng: asNumber(point['lng']) };
+          }) : [],
+          name: area.name as string | undefined,
+          etaMin: asNumber(area.etaMin),
+          etaMax: asNumber(area.etaMax),
+          feeBase: asNumber(area.feeBase),
+          feePerKm: asNumber(area.feePerKm),
+          minOrder: asNumber(area.minOrder),
         } as DeliveryArea;
       }
     }
@@ -97,7 +101,7 @@ export function coversPoint(delivery: TenantDelivery | null, point: { lat: numbe
     if (!a) continue;
     if (a.type === "radius") {
       if (Geo.pointInRadius(point, a.center, a.radiusKm)) {
-        return { ok: true, etaMin: (a as any).etaMin, etaMax: (a as any).etaMax };
+        return { ok: true, etaMin: typeof a.etaMin === "number" ? a.etaMin : undefined, etaMax: typeof a.etaMax === "number" ? a.etaMax : undefined };
       }
     } else if (a.type === "polygon") {
       const pts = a.points;

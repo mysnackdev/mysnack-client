@@ -1,4 +1,4 @@
-import { getDatabase, ref, push, set, remove, update, get, child, onValue, off } from "firebase/database";
+import { getDatabase, ref, push, set, remove, update, get, child, onValue, off, type DataSnapshot } from "firebase/database";
 import { auth } from "@/firebase";
 
 /**
@@ -45,7 +45,7 @@ export async function listCards(): Promise<SavedCard[]> {
   const snap = await get(cardsRef(cur));
   if (!snap.exists()) return [];
   const raw = snap.val() as Record<string, Omit<SavedCard, "id">>;
-  return Object.entries(raw).map(([id, v]) => ({ id, ...(v as any) }));
+  return Object.entries(raw).map(([id, v]) => ({ id, ...(v as Omit<SavedCard, "id">) }));
 }
 
 export function listenCards(cb: (cards: SavedCard[]) => void): () => void {
@@ -55,15 +55,15 @@ export function listenCards(cb: (cards: SavedCard[]) => void): () => void {
     return () => {};
   }
   const q = cardsRef(uid);
-  const handler = (snap: any) => {
+  const handler = (snap: DataSnapshot) => {
     if (!snap.exists()) {
       cb([]);
       return;
     }
     const raw = snap.val() as Record<string, Omit<SavedCard, "id">>;
-    const arr = Object.entries(raw).map(([id, v]) => ({ id, ...(v as any) }));
+    const arr = Object.entries(raw).map(([id, v]) => ({ id, ...(v as Omit<SavedCard, "id">) }));
     // Ordena por createdAt desc, com default primeiro
-    arr.sort((a: any, b: any) => {
+    arr.sort((a: SavedCard, b: SavedCard) => {
       if (a.default === b.default) return (b.createdAt ?? 0) - (a.createdAt ?? 0);
       return a.default ? -1 : 1;
     });
@@ -96,11 +96,10 @@ export async function deleteCard(cardId: string): Promise<void> {
 }
 
 export async function setDefaultCard(cardId: string): Promise<void> {
-  const db = getDatabase();
-  const snap = await get(cardsRef());
-  const updates: Record<string, any> = {};
+    const snap = await get(cardsRef());
+  const updates: Record<string, boolean> = {};
   if (snap.exists()) {
-    Object.keys(snap.val() as any).forEach((id) => {
+    Object.keys((snap.val() as Record<string, unknown>) || {}).forEach((id) => {
       updates[`${id}/default`] = id === cardId;
     });
   } else {
@@ -142,9 +141,8 @@ export const PaymentsService = {
       // allow passing either SavedCard or minimal Card
       const holder = c.holder ?? "Cartão";
       const exp = c.exp ?? "12/30";
-      const brand = c.brand ?? "Desconhecido";
-      const last4 = c.last4 ?? "0000";
-      const type: UiCardType = (c as any).type === "debit_card" ? "Débito" : "Crédito";
+          const last4 = c.last4 ?? "0000";
+      const type: UiCardType = ((c as { type?: DbCardType }).type === "debit_card") ? "Débito" : "Crédito";
       await addCard({ holder, number: `****${last4}`, exp, cvv: "000", type });
     }
   }

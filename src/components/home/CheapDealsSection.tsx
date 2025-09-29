@@ -10,22 +10,23 @@ function formatBRL(v: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 }
 
-/** Utilitário seguro para ler string aninhada sem usar `any` */
-function getString(obj: unknown, path: string[]): string | undefined {
+function getNumber(obj: unknown, path: string[]): number | undefined {
   let cur: unknown = obj;
   for (const k of path) {
     if (!cur || typeof cur !== "object") return undefined;
     cur = (cur as Record<string, unknown>)[k];
   }
-  return typeof cur === "string" ? cur : undefined;
+  const n = typeof cur === "number" ? cur : typeof cur === "string" ? Number(cur) : NaN;
+  return Number.isFinite(n) ? n : undefined;
 }
+
 
 /** Extrai imageUrl do Deal */
 function getImageUrl(it: DealItem): string | undefined {
   return (
-    (it as any).imageUrl ||
-    getString(it as any, ["images", "0"]) ||
-    getString(it as any, ["image", "url"]) ||
+    getString(it, ["imageUrl"]) || getString(it, ["image", "url"]) ||
+    getString(it, ["images","0"]) ||
+    getString(it, ["image","url"]) ||
     undefined
   );
 }
@@ -33,9 +34,9 @@ function getImageUrl(it: DealItem): string | undefined {
 /** Deduz o storeId mais provável (ajuste conforme seu schema) */
 function inferStoreId(it: DealItem): string | undefined {
   return (
-    (it as any).storeId ||
-    getString(it as any, ["store", "id"]) ||
-    getString(it as any, ["loja", "id"]) ||
+    getString(it, ["storeId"]) ||
+    getString(it, ["store","id"]) ||
+    getString(it, ["loja","id"]) ||
     undefined
   );
 }
@@ -44,6 +45,15 @@ function safeSrc(u?: string | null) {
   if (!u) return null;
   const s = String(u).trim();
   return s.length ? s : null;
+}
+
+function getString(obj: unknown, path: string[]): string | undefined {
+  let cur: unknown = obj;
+  for (const k of path) {
+    if (!cur || typeof cur !== "object") return undefined;
+    cur = (cur as Record<string, unknown>)[k];
+  }
+  return typeof cur === "string" ? cur : undefined;
 }
 
 export default function CheapDealsSection() {
@@ -103,13 +113,13 @@ export default function CheapDealsSection() {
           {items.map((it) => {
             const storeId = inferStoreId(it) || "";
             const imageUrl = getImageUrl(it);
-            const price = (it as any).price ?? (it as any).preco ?? 0;
-            const name = (it as any).name ?? (it as any).titulo ?? "Item";
+            const price = getNumber(it, ["price"]) ?? getNumber(it, ["preco"]) ?? 0;
+            const name = getString(it, ["name"]) ?? getString(it, ["titulo"]) ?? "Item";
 
             return (
               <Link
-                key={`${storeId}-${(it as any).id ?? name}`}
-                href={`/produto#${encodeURIComponent(storeId)}/${encodeURIComponent((it as any).id ?? name)}`}
+                key={`${storeId}-${getString(it,["id"]) ?? name}`}
+                href={`/produto#${encodeURIComponent(storeId)}/${encodeURIComponent(getString(it,["id"]) ?? name)}`}
                 className="min-w-[180px] max-w-[180px]"
               >
                 <div className="w-[120px] h-[120px] mx-auto rounded-full ring-4 ring-orange-300 overflow-hidden">

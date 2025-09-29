@@ -98,7 +98,7 @@ export default function BuscaPage() {
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {uniqueCategories.map((cat) => (
                   <Link
-                    href={`/busca/${encodeURIComponent(cat)}`}
+                    href={`/busca/${encodeURIComponent(normalize(cat))}`}
                     key={cat}
                     className="rounded-xl p-4 text-white"
                     style={{ background: "linear-gradient(135deg, #ff7aa2, #ff4d79)" }}

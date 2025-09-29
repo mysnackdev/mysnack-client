@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { CartDrawer, type CartItem } from "@/components/cart-drawer";
+import type { CartItem } from "@/@types/cart";
+import { CartDrawer } from "@/components/cart-drawer";
 import { getAuth } from "firebase/auth";
 import { useRouter } from "next/navigation";
-import { OrderService } from "@/services/order.service";
 
 /** API para outros componentes adicionarem itens ao carrinho */
 export function addItems(items: CartItem[]) {
@@ -41,8 +41,7 @@ export function addItems(items: CartItem[]) {
 export default function CartManager() {
   const [isOpen, setIsOpen] = useState(false);
   const [items, setItems] = useState<CartItem[]>([]);
-  const [checkingOut, setCheckingOut] = useState(false);
-  const mounted = useRef(false);
+    const mounted = useRef(false);
   const router = useRouter();
   const auth = getAuth();
 
@@ -141,7 +140,7 @@ export default function CartManager() {
     }
     setIsOpen(false);
     router.push('/checkout');
-  }, [auth, router, items.length]);
+  }, [auth, router]);
 
   return (
     <CartDrawer

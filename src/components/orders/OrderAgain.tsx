@@ -32,7 +32,7 @@ export default function OrderAgain() {
       unsub = await subscribeUserOrders(user.uid, setOrders);
     })();
     return () => { if (unsub) unsub(); };
-  }, [user?.uid]);
+  }, [user]);
 
   const last = useMemo(() => {
     if (!orders || !orders.length) return null;
@@ -51,13 +51,13 @@ export default function OrderAgain() {
         if (cancel) return;
         setDetail(d || null);
         const name =
-          (d as any)?.store?.displayName ||
-          (d as any)?.storeName ||
-          (d as any)?.merchant?.name || "";
+          (d as (SnackOrder & { store?: { displayName?: string } | null; merchant?: { name?: string } | null }) | null | undefined)?.store?.displayName ||
+          (d as { storeName?: string } | null | undefined)?.storeName ||
+          (d as { merchant?: { name?: string } | null } | null | undefined)?.merchant?.name || "";
         if (name) {
           setStoreName(name);
         } else {
-          const sid = last.storeId || (d as any)?.storeId;
+          const sid = last.storeId || (d as { storeId?: string } | null | undefined)?.storeId;
           if (sid) {
             try {
               const cat = await CatalogService.getStoreCatalog(sid);
@@ -70,7 +70,7 @@ export default function OrderAgain() {
       }
     })();
     return () => { cancel = true; };
-  }, [last?.key]);
+  }, [last]);
 
   if (!user) return null;
   if (!last || !detail) return null;
@@ -79,14 +79,14 @@ export default function OrderAgain() {
 
   const handleAdd = () => {
     try {
-      const items = (detail.items || []).map((it: any, idx: number) => ({
+      const items = (detail.items || []).map((it: Partial<import("@/services/order.service").SnackOrderItem>, idx: number) => ({
         id: String(it.id || idx),
         name: String(it.name || "Item"),
-        qty: Number(it.qty || it.quantity || 1),
+        qty: Number(it.qty || 1),
         price: Number(it.price || 0),
       }));
       if (!items.length) return;
-      addItems(items as any);
+      addItems(items);
     } catch {}
   };
 

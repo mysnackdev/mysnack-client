@@ -6,7 +6,6 @@ import React, { useEffect, useState } from "react";
 import { getAuth } from "firebase/auth";
 import { readUserSavedCards } from "@/services/user-cards.service";
 import type { UserCard } from "@/types/payments";
-import { mockSelectTable } from "@/services/tables.service";
 
 type Props = {
   value?: { method?: "pix" | "card"; cardId?: string };
@@ -37,8 +36,8 @@ export default function PaymentStep({ value, onChange, onNext, onBack }: Props) 
           const list = await readUserSavedCards(uid);
           if (mounted) setCards(list);
         }
-      } catch (e: any) {
-        if (mounted) setError(e?.message ?? "Erro ao carregar cartões.");
+      } catch (e: unknown) {
+        if (mounted) setError(e instanceof Error ? e.message : "Erro ao carregar cartões.");
       } finally {
         if (mounted) setLoading(false);
       }
@@ -48,7 +47,7 @@ export default function PaymentStep({ value, onChange, onNext, onBack }: Props) 
 
   useEffect(() => {
     onChange?.({ method, cardId: method === "card" ? selectedCard : undefined });
-  }, [method, selectedCard]);
+  }, [method, selectedCard, onChange]);
 
   const hasCards = cards.length > 0;
 

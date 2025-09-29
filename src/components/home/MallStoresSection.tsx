@@ -22,7 +22,7 @@ export default function MallStoresSection() {
   const [loading, setLoading] = useState(true);
   const [geo, setGeo] = useState<{lat:number; lng:number} | null>(null);
   const [nearby, setNearby] = useState<string[]>([]);
-  const [geoErr, setGeoErr] = useState<string | null>(null);
+  const [, setGeoErr] = useState<string | null>(null);
 
 
   useEffect(() => {

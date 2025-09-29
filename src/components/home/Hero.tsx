@@ -2,7 +2,6 @@
 import Image from "next/image";
 import { useMall } from "@/context/MallContext";
 
-function safeSrc(u?: string | null) { return (typeof u === "string" && u.trim() !== "") ? u : null; }
 
 export default function Hero() {
   const { profile } = useMall();

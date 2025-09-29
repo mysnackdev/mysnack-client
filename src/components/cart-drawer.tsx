@@ -2,7 +2,6 @@
 
 import React from "react";
 import type { CartItem } from "@/@types/cart";
-export type { CartItem } from "@/@types/cart";
 
 export interface CartDrawerProps {
   isOpen: boolean;

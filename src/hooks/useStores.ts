@@ -68,6 +68,18 @@ function getArrayProp(obj: unknown, key: string): unknown[] {
 }
 
 /** utilitário: pega string de uma propriedade sem usar `any` */
+function getBoolProp(obj: unknown, key: string): boolean | undefined {
+  if (!obj || typeof obj !== "object") return undefined;
+  const v = (obj as Record<string, unknown>)[key];
+  if (typeof v === "boolean") return v;
+  if (typeof v === "string") {
+    if (v === "true") return true;
+    if (v === "false") return false;
+  }
+  if (typeof v === "number") return v !== 0;
+  return undefined;
+}
+
 function getStringProp(obj: unknown, ...keys: string[]): string | undefined {
   if (!obj || typeof obj !== "object") return undefined;
   const rec = obj as Record<string, unknown>;
@@ -138,8 +150,8 @@ function normalizeFromCF(cf: GetFoodStoresResult): FoodStore[] {
       telefone,
       contato: website,
       pacotes: pacotes.length ? pacotes : undefined,
-      online: (raw as any)?.online ?? (raw as any)?.isOpenNow ?? undefined,
-      isOpenNow: (raw as any)?.isOpenNow ?? (raw as any)?.online ?? undefined,    };
+      online: getBoolProp(raw as unknown, "online") ?? getBoolProp(raw as unknown, "isOpenNow") ?? undefined,
+      isOpenNow: getBoolProp(raw as unknown, "isOpenNow") ?? getBoolProp(raw as unknown, "online") ?? undefined,    };
   });
 
   return stores.sort((a, b) => (a?.nome ?? "").localeCompare(b?.nome ?? ""));

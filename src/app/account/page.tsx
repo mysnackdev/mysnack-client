@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { useAuth } from "@/hooks";
 import LoginForm from "@/components/login-form";
 import type { ClientProfileInput } from "@/@types/profile.types";
 import { ProfileService } from "@/services/profile.service";
-import { Check, Save, Mail, Phone, IdCard, Calendar, MapPin, ToggleLeft, ToggleRight } from "lucide-react";
+import {Check, Mail, Phone, IdCard, Calendar, ToggleLeft, ToggleRight} from "lucide-react";
 
 const BottomNav = dynamic(() => import("@/components/bottom-nav"), { ssr: false });
 
@@ -57,16 +57,24 @@ export default function AccountPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.uid]);
 
-  const handle = (path: string, value: any) => {
-    setForm((prev) => {
-      const next = structuredClone(prev);
-      const keys = path.split(".");
-      let ref: any = next;
-      for (let i = 0; i < keys.length - 1; i++) ref = ref[keys[i]] ||= {};
-      ref[keys.at(-1)!] = value;
-      return next;
-    });
-  };
+  const handle = (path: string, value: unknown) => {
+  setForm((prev) => {
+    const next: LocalProfile = structuredClone(prev);
+    const keys = path.split(".");
+    let ref: Record<string, unknown> = next as unknown as Record<string, unknown>;
+    for (let i = 0; i < keys.length - 1; i++) {
+      const k = keys[i]!;
+      const cur = ref[k];
+      if (typeof cur !== "object" || cur === null) {
+        ref[k] = {};
+      }
+      ref = ref[k] as Record<string, unknown>;
+    }
+    ref[keys[keys.length - 1]!] = value;
+    return next;
+  });
+};
+
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,7 +88,7 @@ export default function AccountPage() {
         await ProfileService.upsertClientProfile({ ...form, uid: user.uid });
       } catch (err) {
         // noop – callable pode não existir ainda
-        console.info("upsertClientProfile (mock fallback):", (err as any)?.message || err);
+        console.info("upsertClientProfile (mock fallback):", err instanceof Error ? err.message : String(err));
       }
       setSavedAt(Date.now());
     } finally {

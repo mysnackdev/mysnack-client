@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronRight, ShoppingCart, BadgeCheck, ChefHat, Package, Bike, CheckCircle2 } from "lucide-react";
+import { ShoppingCart, BadgeCheck, ChefHat, Package, Bike, CheckCircle2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { subscribeUserOrders, type MirrorOrder } from "@/services/orders.mirror.service";
 import { OrderService, type SnackOrder } from "@/services/order.service";
@@ -24,7 +24,7 @@ function brl(v?: number | null) {
   try {
     return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(v || 0));
   } catch {
-    return "R$ 0,00";
+    return "R$ 0,00";
   }
 }
 
@@ -84,10 +84,20 @@ function RatingStars({ orderId, uid }: { orderId: string; uid: string }) {
       try {
         const db = getDatabase();
         const snap = await get(ref(db, `orders/${orderId}/ratings/${uid}`));
-        const v: any = snap.exists() ? snap.val() : null;
-        const n = typeof v === "number" ? v : (typeof v?.value === "number" ? v.value : 0);
-        if (mounted) setValue(Math.max(0, Math.min(5, Number(n || 0))));
-      } catch {}
+        const raw: unknown = snap.exists() ? snap.val() : null;
+
+        let n = 0;
+        if (typeof raw === "number") {
+          n = raw;
+        } else if (raw !== null && typeof raw === "object" && "value" in raw) {
+          const maybe = (raw as { value?: unknown }).value;
+          if (typeof maybe === "number") n = maybe;
+        }
+
+        if (mounted) setValue(Math.max(0, Math.min(5, n)));
+      } catch {
+        // opcional: log/monitoramento
+      }
     })();
     return () => { mounted = false; };
   }, [orderId, uid]);
@@ -97,7 +107,9 @@ function RatingStars({ orderId, uid }: { orderId: string; uid: string }) {
     try {
       const db = getDatabase();
       await set(ref(db, `orders/${orderId}/ratings/${uid}`), { value: n, updatedAt: Date.now() });
-    } catch {}
+    } catch {
+      // opcional: log/monitoramento
+    }
   };
 
   return (
@@ -155,11 +167,11 @@ export default function HistoryList() {
       unsub = await subscribeUserOrders(user.uid, setOrders);
     })();
     return () => { if (unsub) unsub(); };
-  }, [user?.uid]);
+  }, [user]);
 
   useEffect(() => {
     if (!orders || !orders.length) return;
-    let cancelled = false; // type trick for TS-less environment
+    let cancelled = false;
     (async () => {
       const ids = orders.map((o) => o.key).filter(Boolean);
       const missing = ids.filter((id) => !(id in details));
@@ -183,7 +195,7 @@ export default function HistoryList() {
       }
     })();
     return () => { cancelled = true; };
-  }, [orders]);
+  }, [orders, details]);
 
   /* fetch store names for orders */
   useEffect(() => {
@@ -191,10 +203,13 @@ export default function HistoryList() {
     const pending: Array<{storeId: string, source: string}> = [];
     const collected: Record<string,string> = {};
     for (const o of orders) {
-      const sid = (o.storeId as any) || ((details as any)[o.key]?.storeId as any) || "";
+      const sid = o.storeId || ((details[o.key] as { storeId?: string } | null | undefined)?.storeId) || "";
       if (!sid) continue;
       if (!(sid in storeNames)) {
-        const fromDet = ((details as any)[o.key]?.store as any)?.displayName || ((details as any)[o.key]?.storeName as any);
+        const fromDet =
+          ((details[o.key] as { store?: { displayName?: string } | null; storeName?: string } | null | undefined)?.store?.displayName
+          || (details[o.key] as { storeName?: string } | null | undefined)?.storeName);
+
         if (typeof fromDet === "string" && fromDet) {
           collected[sid] = fromDet;
         } else {
@@ -225,7 +240,6 @@ export default function HistoryList() {
       })();
     }
   }, [orders, details, storeNames]);
-
 
   if (!user) return null;
 
@@ -269,13 +283,21 @@ export default function HistoryList() {
                     {/* store logo placeholder (use details if available) */}
                     <div className="h-10 w-10 rounded-full bg-zinc-100 shrink-0 overflow-hidden"></div>
                     <div className="min-w-0">
-                      <div className="text-[15px] font-semibold truncate">{ storeNames[o.storeId || (det as any)?.storeId] || (det as any)?.store?.displayName || (det as any)?.storeName || (det as any)?.merchant?.name || "Loja" }</div>
+                      <div className="text-[15px] font-semibold">
+                        { storeNames[o.storeId || (det as { storeId?: string } | null | undefined)?.storeId || ""] 
+                          || (det as { store?: { displayName?: string } | null } | null | undefined)?.store?.displayName 
+                          || (det as { storeName?: string } | null | undefined)?.storeName 
+                          || (det as { merchant?: { name?: string } | null } | null | undefined)?.merchant?.name 
+                          || "Loja" }
+                      </div>
                       <div className="mt-1 flex items-center gap-2 text-sm text-zinc-600">
                         <span className={cancelled ? "h-2 w-2 rounded-full bg-red-500 inline-block" : "h-2 w-2 rounded-full bg-emerald-500 inline-block"} />
                         <span className="truncate">
                           {cancelled ? "Pedido cancelado" : STATUS_STEPS[idx]}{" "}
-                          {((det as any)?.humanId || (det as any)?.number) && (
-                            <>• Nº {((det as any)?.humanId || (det as any)?.number)}</>
+                          {(((det as { humanId?: string | number; number?: string | number } | null | undefined)?.humanId) 
+                            || ((det as { number?: string | number } | null | undefined)?.number)) && (
+                            <>• Nº {(((det as { humanId?: string | number; number?: string | number } | null | undefined)?.humanId) 
+                            || ((det as { number?: string | number } | null | undefined)?.number))}</>
                           )}
                         </span>
                       </div>
@@ -298,7 +320,6 @@ export default function HistoryList() {
               <div className="mt-3">
                 <div className="text-sm font-semibold">Avaliação</div>
                 <RatingStars orderId={o.key} uid={user!.uid} />
-                
               </div>
 
               {/* Actions row */}
@@ -330,6 +351,3 @@ export default function HistoryList() {
     </section>
   );
 }
-
-
-  

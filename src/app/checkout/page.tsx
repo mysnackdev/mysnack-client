@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useShoppingPaymentsCF } from "@/hooks/useShoppingPayments";
 import { useRouter } from "next/navigation";
-import { getDatabase, ref as r, onValue, get } from "firebase/database";
+import { getDatabase, onValue, ref as r } from "firebase/database";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { getAuth } from "firebase/auth";
 import app from "@/firebase";
@@ -56,11 +56,6 @@ export default function CheckoutPage() {
   );
 
   const [step, setStep] = useState<Step>("itens");
-  const [bankInfo, setBankInfo] = useState<{
-    pix: boolean;
-    banks: Record<string, boolean>;
-  }>({ pix: false, banks: {} });
-
   // --- Bypass de QR: seleciona uma mesa de teste no shopping da loja ---
   // Usa backoffice/stores/{storeId}/shoppingSlug (leitura pública) e evita ler /backoffice/shoppings
   
@@ -73,44 +68,15 @@ export default function CheckoutPage() {
       }
       const res = await mockSelectTableForCheckout(storeId);
       setTableInfo(res);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("mockSelectTable error", err);
-      alert(err?.message ?? "Falha ao mockar mesa.");
+      alert(err instanceof Error ? err.message : "Falha ao mockar mesa.");
     }
   }
 
 
   const [items, setItems] = useState<CartItem[]>([]);
   const [storeId, setStoreId] = useState<string>("");
-
-// Mock de QR dentro do componente (usa storeId/items do estado)
-const handleMockTable = React.useCallback(async () => {
-  try {
-    const id = storeId || (items && items[0]?.storeId);
-    if (!id) throw new Error("Loja não identificada para mockar a mesa.");
-    const place = await mockSelectTableForCheckout(id);
-    try { setTableInfo(place as QrResult); } catch {}
-    // persistir rascunho
-    try {
-      const { getAuth } = await import("firebase/auth");
-      const { getDatabase, ref, update } = await import("firebase/database");
-      const uid = getAuth().currentUser?.uid;
-      if (uid) {
-        const db = getDatabase();
-        await update(ref(db, `client/checkouts/${uid}`), { deliveryPlace: place });
-      }
-    } catch {}
-    // toast opcional
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const anyWindow: any = window;
-      (anyWindow.toast?.success || console.log)(`Mesa de teste selecionada em ${place.mallId || "shopping"}`);
-    } catch {}
-  } catch (e: any) {
-    alert(e?.message ?? "Falha ao mockar mesa");
-  }
-}, [storeId, items]);
-
   
   const paymentsCF = useShoppingPaymentsCF({ slug: null, storeId, bypass: null });
   const accepted = useMemo(() => ({
@@ -171,8 +137,9 @@ const handleMockTable = React.useCallback(async () => {
         if (list.length && selectedCard && !list.find((c) => c.id === selectedCard)) {
           setSelectedCard(undefined);
         }
-      } catch (e: any) {
-        setCardsError(e?.message ?? "Erro ao carregar cartões.");
+      } catch (err: unknown) {
+        console.error("mockSelectTable error", err);
+        alert(err instanceof Error ? err.message : "Falha ao mockar mesa.");
       } finally {
         setLoadingCards(false);
       }
@@ -193,8 +160,6 @@ const handleMockTable = React.useCallback(async () => {
   const discount = 0;
   const total = Math.max(0, subtotal + serviceFee + deliveryFee - discount);
 
-  const canContinueItens = items.length > 0 && total >= 0;
-
   async function finalizeOrder() {
     const user = auth.currentUser;
     if (!user?.uid) {
@@ -212,7 +177,7 @@ const handleMockTable = React.useCallback(async () => {
     }
 
     const call = httpsCallable(fns, "createOrder");
-    const payload: any = {
+    const payload: Record<string, unknown> = {
       storeId,
       items: items.map((i) => ({
         id: i.id,
@@ -239,12 +204,12 @@ const handleMockTable = React.useCallback(async () => {
       meta: { cpfOnInvoice: cpf || null, notes: notes || null },
     };
     try {
-      const res: any = await call(payload);
-      const id: string = res?.data?.orderId;
+      const res: unknown = await call(payload);
+      const id: string = ((typeof res === "object" && res && "data" in res ? (res as { data?: { orderId?: string } }).data?.orderId : undefined) as string);
       setOrderId(id || null);
 
       // limpa carrinho só após sucesso
-      if (res?.data?.payment?.intent === "online") {
+      if (typeof res === "object" && res && "data" in res && ((res as { data?: { payment?: { intent?: string } } }).data?.payment?.intent === "online")) {
         setStep("aguardando");
         const payRef = r(db, `orders/${id}/payment/status`);
         const off = onValue(payRef, (s) => {

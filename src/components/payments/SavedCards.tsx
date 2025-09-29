@@ -29,8 +29,8 @@ export default function SavedCards({
         if (!uid) return;
         const list = await readUserSavedCards(uid);
         if (mounted) setCards(list);
-      } catch (e: any) {
-        if (mounted) setError(e?.message ?? "Erro ao carregar cartões.");
+      } catch (e: unknown) {
+        if (mounted) setError(e instanceof Error ? e.message : "Erro ao carregar cartões.");
       } finally {
         if (mounted) setLoading(false);
       }
