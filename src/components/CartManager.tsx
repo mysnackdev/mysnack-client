@@ -1,9 +1,12 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import HelpCenter from "@/components/help/HelpCenter";
+import OnboardingInitializer from "@/components/onboarding/OnboardingInitializer";
 import type { CartItem } from "@/@types/cart";
 import { CartDrawer } from "@/components/cart-drawer";
-import { getAuth } from "firebase/auth";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
+import { subscribeUserOrders, type MirrorOrder } from "@/services/orders.mirror.service";
 import { useRouter } from "next/navigation";
 
 /** API para outros componentes adicionarem itens ao carrinho */
@@ -142,8 +145,59 @@ export default function CartManager() {
     router.push('/checkout');
   }, [auth, router]);
 
-  return (
-    <CartDrawer
+  
+  // --- Limpa o drawer quando um pedido for CONCLUÍDO (entregue) ou CANCELADO — apenas no front ---
+  useEffect(() => {
+    const auth = getAuth();
+    let unsub: (() => void) | null = null;
+    let offAuth: (() => void) | null = null;
+
+    function clearCartFront(reason: string, orderKey: string) {
+      try {
+        setItems([]);
+        save([]);
+        setIsOpen(false);
+        const seenRaw = localStorage.getItem("mysnack:cleared_orders") || "[]";
+        const seen: string[] = JSON.parse(seenRaw);
+        if (!seen.includes(orderKey)) {
+          seen.push(orderKey);
+          localStorage.setItem("mysnack:cleared_orders", JSON.stringify(seen));
+        }
+        console.debug("[Cart] cleared due to order:", reason, orderKey);
+      } catch {}
+    }
+
+    function watch(uid: string) {
+      (async () => {
+        unsub = await subscribeUserOrders(uid, (orders) => {
+          try {
+            const seen: string[] = JSON.parse(localStorage.getItem("mysnack:cleared_orders") || "[]");
+            const finals = orders.filter(o => {
+              const s = String(o.status || "").toLowerCase();
+              return s.includes("entregue") || s.includes("cancelado") || o.cancelled === true;
+            });
+            const target = finals.find(o => !seen.includes(o.key));
+            if (target) clearCartFront(String(target.status || "final"), target.key);
+          } catch (e) {
+            console.warn("[Cart] watch orders failed:", e);
+          }
+        });
+      })();
+    }
+
+    const u = auth.currentUser?.uid;
+    if (u) watch(u);
+    offAuth = onAuthStateChanged(auth, user => {
+      if (user?.uid) watch(user.uid);
+    });
+
+    return () => { try { unsub?.(); offAuth?.(); } catch {} };
+  }, [save]);
+return (
+    <>
+      <OnboardingInitializer />
+      <HelpCenter />
+      <CartDrawer
       isOpen={isOpen}
       items={items}
       onClose={onClose}
@@ -154,5 +208,6 @@ export default function CartManager() {
         void onCheckout();
       }}
     />
+    </>
   );
 }

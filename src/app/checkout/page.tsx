@@ -77,8 +77,8 @@ export default function CheckoutPage() {
 
   const [items, setItems] = useState<CartItem[]>([]);
   const [storeId, setStoreId] = useState<string>("");
-  
-  const paymentsCF = useShoppingPaymentsCF({ slug: null, storeId, bypass: null });
+  const [shoppingSlug, setShoppingSlug] = useState<string>("");
+  const paymentsCF = useShoppingPaymentsCF({ slug: shoppingSlug || null, storeId, bypass: shoppingSlug || null });
   const accepted = useMemo(() => ({
     pix: paymentsCF.accepted.pix,
     credit_card: paymentsCF.accepted.credit,
@@ -267,11 +267,7 @@ export default function CheckoutPage() {
                 A câmera será aberta para leitura do QR da mesa. Também é possível
                 colar o conteúdo do QR no diálogo.
               </p>
-              {process.env.NODE_ENV !== "production" && (
-                <button className="btn-secondary w-full mt-2" onClick={handleBypassQr}>
-                  Usar mesa de teste (bypass QR)
-                </button>
-              )}
+              {(<button className="btn-secondary w-full mt-2" onClick={handleBypassQr}>Usar mesa de teste (bypass QR)</button>)}
             </div>
             <Summary
               subtotal={subtotal}

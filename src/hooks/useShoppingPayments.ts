@@ -96,7 +96,11 @@ export function useShoppingPaymentsCF(opts: { slug: string | null; storeId?: str
   useEffect(() => {
     let cancelled = false;
     async function run() {
-      const resolvedSlug = (slug || (typeof bypass === "string" ? bypass : null) || "").toString();
+      let resolvedSlug = (slug || (typeof bypass === "string" ? bypass : null) || "").toString();
+      // fallback: tenta última leitura de QR no cliente
+      if (!resolvedSlug && typeof window !== 'undefined') {
+        try { const lq = localStorage.getItem('mysnack:lastQr'); if (lq) { const p = JSON.parse(lq); if (p?.mallId) resolvedSlug = String(p.mallId); } } catch {}
+      }
       if (!resolvedSlug) {
         setAccepted({ pix: false, credit: false, debit: false, voucher: false, other: false });
         setRaw({});
